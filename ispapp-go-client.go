@@ -202,7 +202,7 @@ func new_websocket(host Host) {
 					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
 				}
 
-				fmt.Printf("%s sending in: %d\n", host.Login, sendOffset)
+				fmt.Printf("%s sending update in %d seconds.\n", host.Login, sendOffset)
 
 				sendAt = time.Now().Unix() + sendOffset
 			}
@@ -274,7 +274,7 @@ func new_websocket(host Host) {
 					}
 					stats := pinger.Statistics()
 
-					cols.Ping[pingIndex].Host = string(pingHosts[0])
+					cols.Ping[pingIndex].Host = string(pingHosts[pingIndex])
 					if (!pingError) {
 						cols.Ping[pingIndex].AvgRtt = float64(stats.AvgRtt) / float64(time.Millisecond)
 						cols.Ping[pingIndex].MinRtt = float64(stats.MinRtt) / float64(time.Millisecond)
