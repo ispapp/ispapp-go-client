@@ -5,8 +5,10 @@ import (
 	"log"
 	"fmt"
 	"net"
+	"context"
 	"strings"
 	"bytes"
+	b64 "encoding/base64"
 	"os/exec"
 	"runtime"
 	"net/url"
@@ -41,6 +43,9 @@ type WsResponse struct {
 	LastUpdateOffsetSec	int64	`json:"lastUpdateOffsetSec"`
 	UpdateFast		bool	`json:"updateFast"`
 	Error			string	`json:"error"`
+	Cmd			string	`json:"cmd"`
+	Ws_Id			string	`json:"ws_id"`
+	UuidV4			string	`json:"uuidv4"`
 }
 
 type Host struct {
@@ -181,7 +186,7 @@ func new_websocket(host Host) {
 				fmt.Println("error reading wss server response for " + host.Login + ":", err)
 				return
 			}
-			//fmt.Printf("\nrecv: %s", message)
+			fmt.Printf("\nrecv: %s", message)
 
 			var hr WsResponse
 
@@ -190,9 +195,120 @@ func new_websocket(host Host) {
 				fmt.Printf("error decoding json: %s\n", err.Error())
 			}
 
-			//fmt.Printf("hr: %+v\n\n", hr)
+			fmt.Printf("hr: %+v\n\n", hr)
 
-			if (hr.UpdateFast) {
+			if (hr.Client.Authed && hr.Type == "config") {
+
+				authed = true
+
+				// make an update request immediately following the config request
+				sendAt = time.Now().Unix() + 1
+
+				// set the config response intervals
+				host.OutageIntervalSeconds = hr.Client.Host.OutageIntervalSeconds
+				host.UpdateIntervalSeconds = hr.Client.Host.UpdateIntervalSeconds
+
+				fmt.Println(host.Login + " authed via config request")
+
+			}
+
+
+			if (hr.Type == "cmd") {
+
+				// execute a command
+				fmt.Printf("executing command: %s\n", hr.Cmd)
+
+				ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+				defer cancel()
+
+				cl := strings.Split(hr.Cmd, " ")
+				fmt.Printf("cl (%d): %q\n", len(cl), cl)
+
+				var out bytes.Buffer
+				var stderr bytes.Buffer
+
+				// believe this, go wants you to write an assembler bus width to execute commands with different numbers of arguments
+				if (len(cl) == 1) {
+
+					cmd := exec.CommandContext(ctx, cl[0])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 2) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 3) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 4) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 5) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 6) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4], cl[5])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 7) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4], cl[5], cl[6])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else if (len(cl) == 8) {
+
+					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4], cl[5], cl[6], cl[7])
+
+					cmd.Stdout = &out
+					cmd.Stderr = &stderr
+					cmd.Run()
+
+				} else {
+					stderr.Write([]byte("Go cannot handle more than some number of arguments to a command, try fewer.  The maximum for the ispapp-go-client is 7.  Won't be long before token bugs arrive to make sure you can properly parse ' and \" while escaping!"))
+				}
+
+				//fmt.Printf("command result: %s\n", out.String())
+
+				// return {type: "cmd", "uuidv4": _, "stdout": "b64()", "stderr": "b64()", "ws_id": _}
+				cmd_r := fmt.Sprintf("{\"type\": \"cmd\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", hr.UuidV4, b64.StdEncoding.EncodeToString(out.Bytes()), b64.StdEncoding.EncodeToString(stderr.Bytes()), hr.Ws_Id)
+
+				err = c.WriteMessage(websocket.TextMessage, []byte(cmd_r))
+				if err != nil {
+					fmt.Println("error sending cmd response for " + host.Login + ":", err)
+				} else {
+					fmt.Println("sent cmd response for " + host.Login)
+				}
+
+			} else if (hr.UpdateFast) {
 				// update every second
 				sendAt = time.Now().Unix() + 1
 			} else if (hr.Type == "error") {
@@ -212,18 +328,6 @@ func new_websocket(host Host) {
 				sendAt = time.Now().Unix() + sendOffset
 			}
 
-			if (hr.Client.Authed) {
-				authed = true
-				// make an update request immediately following the config request
-				sendAt = time.Now().Unix() + 1
-
-				// set the config response intervals
-				host.OutageIntervalSeconds = hr.Client.Host.OutageIntervalSeconds
-				host.UpdateIntervalSeconds = hr.Client.Host.UpdateIntervalSeconds
-
-				fmt.Println(host.Login + " authed via config request")
-			}
-
 		}
 	}()
 
@@ -239,6 +343,7 @@ func new_websocket(host Host) {
 		} else {
 			fmt.Println("sent config request for " + host.Login)
 		}
+
 	} else {
 		fmt.Println("did not send config request because websocket was nil for " + host.Login)
 	}
