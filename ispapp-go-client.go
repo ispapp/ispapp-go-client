@@ -300,8 +300,10 @@ func new_websocket(host Host) {
 				_ = port
 				_ = iperr
 
+				now := time.Now()
+
 				// get uptime
-				uptime_sec := 0
+				var uptime_sec uint64 = 0
 
 				if (runtime.GOOS == "darwin") {
 
@@ -316,9 +318,10 @@ func new_websocket(host Host) {
 					// expects
 					// { sec = 1641489984, usec = 872066 } Thu Jan  6 20:26:24 2022
 					oo := strings.Split(out.String(), " ")
-					oo[6] = strings.TrimRight(oo[6], ",")
-					//fmt.Printf("oo: %q\n", oo[6])
-					uptime_sec, _ = strconv.Atoi(oo[6])
+					oo[3] = strings.TrimRight(oo[3], ",")
+					//fmt.Printf("oo: %q\n", oo[3])
+					uptime_sec, _ = strconv.ParseUint(oo[3], 10, 64)
+					uptime_sec = uint64(now.Unix()) - uptime_sec
 
 				} else if (runtime.GOOS == "linux") {
 
@@ -329,7 +332,7 @@ func new_websocket(host Host) {
 					cmd.Stdout = &out
 					cmd.Stderr = &stderr
 					_ = cmd.Run()
-					uptime_sec, _ = strconv.Atoi(strings.Replace(out.String(), "\n", "", -1))
+					uptime_sec, _ = strconv.ParseUint(strings.Replace(out.String(), "\n", "", -1), 10, 64)
 
 				} else if (runtime.GOOS == "windows") {
 				}
