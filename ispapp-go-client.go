@@ -540,7 +540,7 @@ func new_websocket(host *Host) {
 
 func pcap_routine(host *Host) {
 
-	// don't forget this
+	// don't forget this, if Apple ever fixes it in MacOS
 	// func (p *InactiveHandle) SetRFMon(monitor bool) error
 
 	// wait for host.WanIfName to be set
@@ -554,111 +554,121 @@ func pcap_routine(host *Host) {
 		}
 	}
 
-	if handle, err := pcap.OpenLive(host.WanIfName, 1600, true, pcap.BlockForever); err != nil {
+	// capture live traffic on an interface, third option is for promiscuous mode
+	handle, err := pcap.OpenLive(host.WanIfName, 1600, false, pcap.BlockForever)
+
+	if (err != nil) {
 		panic(err)
-	} else if err := handle.SetBPFFilter("tcp"); err != nil {  // optional
+	}
+
+	// 802.11 monitor mode does not work on MacOS 12
+	// it does not work in Wireshark either
+	// as there are no 802.11 frames to use for counting retransmits
+	// we should set a filter to only capture TCP traffic so less resources are used
+	filter_err := handle.SetBPFFilter("tcp")
+	if (filter_err != nil) {
 		panic(err)
-	} else {
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-		for packet := range packetSource.Packets() {
+	}
 
-			// this shows all packet information
-			//fmt.Printf("packet: %+v\n", packet)
+	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+	for packet := range packetSource.Packets() {
 
-			if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+		// this shows all packet information
+		//fmt.Printf("packet: %+v\n", packet)
 
-				// Get actual TCP data from this layer
-				tcp, _ := tcpLayer.(*layers.TCP)
-				//fmt.Printf("TCP from src port %d to dst port %d with RST: %t and len(%d)\n", tcp.SrcPort, tcp.DstPort, tcp.RST, len(tcp.Payload))
+		if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 
-				// loop through the map of all counted ports and increment those that are counted
+			// Get actual TCP data from this layer
+			tcp, _ := tcpLayer.(*layers.TCP)
+			//fmt.Printf("TCP from src port %d to dst port %d with RST: %t and len(%d)\n", tcp.SrcPort, tcp.DstPort, tcp.RST, len(tcp.Payload))
 
-				// count special bits
-				// CWR - packet may have been modified in response to network congestion
-				// ECE - for the first packet in a sequence, peer is ECN capable, the rest of the packets use it to indicate network congestion
-				// RST - reset requested
-				// SYN - indicates that this is the first packet in a sequence, a reconnect would reset this and it would be prevelant if 10 reconnects each only sent 20% of the data before all the data was sent on the 11th reconnect
+			// loop through the map of all counted ports and increment those that are counted
 
-				/*
-				CWR (1 bit): Congestion window reduced (CWR) flag is set by the sending host to indicate that it received a TCP segment with the ECE flag set and had responded in congestion control mechanism.[b]
-				ECE (1 bit): ECN-Echo has a dual role, depending on the value of the SYN flag. It indicates:
-				If the SYN flag is set (1), that the TCP peer is ECN capable.
-				If the SYN flag is clear (0), that a packet with Congestion Experienced flag set (ECN=11) in the IP header was received during normal transmission.[b] This serves as an indication of network congestion (or impending congestion) to the TCP sender.
-				*/
+			// count special bits
+			// CWR - packet may have been modified in response to network congestion
+			// ECE - for the first packet in a sequence, peer is ECN capable, the rest of the packets use it to indicate network congestion
+			// RST - reset requested
+			// SYN - indicates that this is the first packet in a sequence, a reconnect would reset this and it would be prevelant if 10 reconnects each only sent 20% of the data before all the data was sent on the 11th reconnect
 
-				// could also count the packet length and store the counts of [0-500], [501-1000], [1000-max]
+			/*
+			CWR (1 bit): Congestion window reduced (CWR) flag is set by the sending host to indicate that it received a TCP segment with the ECE flag set and had responded in congestion control mechanism.[b]
+			ECE (1 bit): ECN-Echo has a dual role, depending on the value of the SYN flag. It indicates:
+			If the SYN flag is set (1), that the TCP peer is ECN capable.
+			If the SYN flag is clear (0), that a packet with Congestion Experienced flag set (ECN=11) in the IP header was received during normal transmission.[b] This serves as an indication of network congestion (or impending congestion) to the TCP sender.
+			*/
 
-				if (tcp.CWR) {
-					host.CwrC += 1;
-				}
-				if (tcp.ECE) {
-					host.EceC += 1;
-				}
-				if (tcp.RST) {
-					host.RstC += 1;
-				}
-				if (tcp.SYN) {
-					host.SynC += 1;
-				}
+			// could also count the packet length and store the counts of [0-500], [501-1000], [1000-max]
 
+			if (tcp.CWR) {
+				host.CwrC += 1;
+			}
+			if (tcp.ECE) {
+				host.EceC += 1;
+			}
+			if (tcp.RST) {
+				host.RstC += 1;
+			}
+			if (tcp.SYN) {
+				host.SynC += 1;
 			}
 
 		}
+
 	}
 
 }
 
 func main() {
 
-	fmt.Println("USAGE:")
-	fmt.Println("\t./ispapp-go-client -addr=\"dev.ispapp.co:8550\" -certPath=\"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\" -hostKey=\"asdfasdfasdf -if=\"en0\"\"\n\n")
+fmt.Println("USAGE:")
+fmt.Println("\t./ispapp-go-client -addr=\"dev.ispapp.co:8550\" -certPath=\"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\" -hostKey=\"asdfasdfasdf -if=\"en0\"\"\n\n")
 
-	flag.StringVar(&addr, "addr", "unknown", "ISPApp address:port")
-	flag.StringVar(&loginInterface, "if", "", "Name of Interface for Login MAC Address")
-	flag.StringVar(&pemFile, "certPath", "/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle", "TLS certificate file path")
-	flag.StringVar(&hostKey, "hostKey", "", "ISPApp Host Key")
+flag.StringVar(&addr, "addr", "unknown", "ISPApp address:port")
+flag.StringVar(&loginInterface, "if", "", "Name of Interface for Login MAC Address")
+flag.StringVar(&pemFile, "certPath", "/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle", "TLS certificate file path")
+flag.StringVar(&hostKey, "hostKey", "", "ISPApp Host Key")
 
-	flag.Parse()
+flag.Parse()
 
-	if (addr == "unknown") {
-		os.Exit(1)
-	}
+if (addr == "unknown") {
+	os.Exit(1)
+}
 
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
+interrupt := make(chan os.Signal, 1)
+signal.Notify(interrupt, os.Interrupt)
 
-	// add ping hosts
-	pingHosts = make([][]byte, 0)
-	pingHosts = append(pingHosts, []byte("aws-eu-west-2-ping.ispapp.co"))
-	pingHosts = append(pingHosts, []byte("aws-us-east-1-ping.ispapp.co"))
-	pingHosts = append(pingHosts, []byte("aws-us-west-1-ping.ispapp.co"))
-	pingHosts = append(pingHosts, []byte("aws-sa-east-1-ping.ispapp.co"))
+// add ping hosts
+pingHosts = make([][]byte, 0)
+pingHosts = append(pingHosts, []byte("aws-eu-west-2-ping.ispapp.co"))
+pingHosts = append(pingHosts, []byte("aws-us-east-1-ping.ispapp.co"))
+pingHosts = append(pingHosts, []byte("aws-us-west-1-ping.ispapp.co"))
+pingHosts = append(pingHosts, []byte("aws-sa-east-1-ping.ispapp.co"))
 
-	// connect this host's mac address as a websocket client
-	var h1 Host
+// connect this host's mac address as a websocket client
+var h1 Host
 
-	// get mac address
-	interfaces, _ := net.Interfaces()
-	for _, interf := range interfaces {
+// get mac address
+interfaces, _ := net.Interfaces()
+for _, interf := range interfaces {
 
-		if (loginInterface == "") {
-			if (interf.Name == "en0" || interf.Name == "en1" || interf.Name == "eth0") {
-				// the first wifi or wired interface on a MacOS, Linux
-				h1.Login = interf.HardwareAddr.String()
-				break
-			}
-		} else {
-			if (interf.Name == loginInterface) {
-				h1.Login = interf.HardwareAddr.String()
-				break
-			}
+	if (loginInterface == "") {
+		if (interf.Name == "en0" || interf.Name == "en1" || interf.Name == "eth0") {
+			// the first wifi or wired interface on a MacOS, Linux
+			h1.Login = interf.HardwareAddr.String()
+			break
 		}
-
+	} else {
+		if (interf.Name == loginInterface) {
+			h1.Login = interf.HardwareAddr.String()
+			break
+		}
 	}
 
-	if (h1.Login == "") {
-		fmt.Printf("Specify the network interface to use the MAC Address of for the login with -if\n")
-		os.Exit(1)
+}
+
+if (h1.Login == "") {
+	fmt.Printf("Specify the network interface to use the MAC Address of for the login with -if\n")
+	os.Exit(1)
 	}
 
 	// set the computer information
