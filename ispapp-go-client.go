@@ -17,6 +17,9 @@ import (
 	"time"
 	"strconv"
 	"github.com/gorilla/websocket"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
+	"github.com/google/gopacket/layers"
 	"crypto/x509"
 	"crypto/tls"
 	"io/ioutil"
@@ -60,8 +63,13 @@ type Host struct {
 	Firmware		string
 	FirmwareVersion		string
 	OSBuildDate		uint64
+	WanIfName		string
 	UpdateIntervalSeconds	int64		`json:"updateIntervalSeconds"`
 	OutageIntervalSeconds	int64		`json:"outageIntervalSeconds"`
+	CwrC			uint64		`json:"cwrC"`
+	EceC			uint64		`json:"eceC"`
+	RstC			uint64		`json:"rstC"`
+	SynC			uint64		`json:"synC"`
 }
 
 type Interface struct {
@@ -135,15 +143,21 @@ type Arp struct {
 	Macs			[]Mac	`json:"macs"`
 }
 
+type Counter struct {
+	Name			string	`json:"name"`
+	Point			uint64	`json:"point"`
+}
+
 type Collector struct {
 	Interface	[]Interface	`json:"interface"`
 	Ping		[]Ping		`json:"ping"`
 	System		System		`json:"system"`
 	Wap		[]Wap		`json:"wap"`
 	Arp		[]Arp		`json:"arp"`
+	Counter		[]Counter	`json:"counter"`
 }
 
-func new_websocket(host Host) {
+func new_websocket(host *Host) {
 
 	u := url.URL{Scheme: "wss", Host: addr, Path: "/ws"}
 	fmt.Printf("connecting to %s\n", u.String())
@@ -171,6 +185,30 @@ func new_websocket(host Host) {
 	}
 	defer c.Close()
 
+	// set host.WanIfName
+	var ipaddrstr, port, iperr = net.SplitHostPort(c.LocalAddr().String())
+	_ = port
+	_ = iperr
+
+	interfaces, _ := net.Interfaces()
+	for _, interf := range interfaces {
+		if addrs, err := interf.Addrs(); err == nil {
+			var found = false
+			for index, addr := range addrs {
+				fmt.Println("[", index, "]", interf.Name, ">", addr)
+				if (strings.Contains(addr.String(), ipaddrstr)) {
+					found = true
+					break
+				}
+			}
+			if (found) {
+				fmt.Printf("wan interface found: %s\n", interf.Name)
+				host.WanIfName = interf.Name
+				break
+			}
+		}
+	}
+
 	var authed bool = false
 	var sendAt = time.Now().Unix()
 
@@ -186,7 +224,7 @@ func new_websocket(host Host) {
 				fmt.Println("error reading wss server response for " + host.Login + ":", err)
 				return
 			}
-			fmt.Printf("\nrecv: %s", message)
+			//fmt.Printf("\nrecv: %s", message)
 
 			var hr WsResponse
 
@@ -195,7 +233,7 @@ func new_websocket(host Host) {
 				fmt.Printf("error decoding json: %s\n", err.Error())
 			}
 
-			fmt.Printf("hr: %+v\n\n", hr)
+			//fmt.Printf("hr: %+v\n\n", hr)
 
 			if (hr.Client.Authed && hr.Type == "config") {
 
@@ -211,7 +249,6 @@ func new_websocket(host Host) {
 				fmt.Println(host.Login + " authed via config request")
 
 			}
-
 
 			if (hr.Type == "cmd") {
 
@@ -359,6 +396,33 @@ func new_websocket(host Host) {
 				var u_json string = ""
 				var cols Collector
 
+				// create a counter collector
+				cols.Counter = make([]Counter, 4)
+
+				// add tcp cwr
+				var c0 Counter = Counter{}
+				c0.Name = "TCP CWR Packets"
+				c0.Point = host.CwrC
+				cols.Counter[0] = c0
+
+				// add tcp ece
+				var c1 Counter = Counter{}
+				c1.Name = "TCP ECE Packets"
+				c1.Point = host.EceC
+				cols.Counter[1] = c1
+
+				// add tcp rst
+				var c2 Counter = Counter{}
+				c2.Name = "TCP RST Packets"
+				c2.Point = host.RstC
+				cols.Counter[2] = c2
+
+				// add tcp syn
+				var c3 Counter = Counter{}
+				c3.Name = "TCP SYN Packets"
+				c3.Point = host.SynC
+				cols.Counter[3] = c3
+
 				cols.Ping = make([]Ping, len(pingHosts))
 
 				for pingIndex := range pingHosts {
@@ -446,6 +510,7 @@ func new_websocket(host Host) {
 				s := fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\"%s, \"collectors\": %s, \"uptime\": %d}", "update", ipaddrstr, u_json, string(cols_json), uptime_sec)
 
 				fmt.Printf("sending update to ISPApp: %s\n", s)
+				//fmt.Printf("host: %+v\n", host)
 
 				err = c.WriteMessage(websocket.TextMessage, []byte(s))
 				if err != nil {
@@ -470,6 +535,76 @@ func new_websocket(host Host) {
 	fmt.Println("reconnecting")
 	time.Sleep(5 * time.Second)
 	new_websocket(host)
+
+}
+
+func pcap_routine(host *Host) {
+
+	// don't forget this
+	// func (p *InactiveHandle) SetRFMon(monitor bool) error
+
+	// wait for host.WanIfName to be set
+	for {
+
+		fmt.Printf("Waiting for WAN Interface Name to be set.\n")
+		time.Sleep(5 * time.Second)
+
+		if (host.WanIfName != "") {
+			break
+		}
+	}
+
+	if handle, err := pcap.OpenLive(host.WanIfName, 1600, true, pcap.BlockForever); err != nil {
+		panic(err)
+	} else if err := handle.SetBPFFilter("tcp"); err != nil {  // optional
+		panic(err)
+	} else {
+		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
+		for packet := range packetSource.Packets() {
+
+			// this shows all packet information
+			//fmt.Printf("packet: %+v\n", packet)
+
+			if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+
+				// Get actual TCP data from this layer
+				tcp, _ := tcpLayer.(*layers.TCP)
+				//fmt.Printf("TCP from src port %d to dst port %d with RST: %t and len(%d)\n", tcp.SrcPort, tcp.DstPort, tcp.RST, len(tcp.Payload))
+
+				// loop through the map of all counted ports and increment those that are counted
+
+				// count special bits
+				// CWR - packet may have been modified in response to network congestion
+				// ECE - for the first packet in a sequence, peer is ECN capable, the rest of the packets use it to indicate network congestion
+				// RST - reset requested
+				// SYN - indicates that this is the first packet in a sequence, a reconnect would reset this and it would be prevelant if 10 reconnects each only sent 20% of the data before all the data was sent on the 11th reconnect
+
+				/*
+				CWR (1 bit): Congestion window reduced (CWR) flag is set by the sending host to indicate that it received a TCP segment with the ECE flag set and had responded in congestion control mechanism.[b]
+				ECE (1 bit): ECN-Echo has a dual role, depending on the value of the SYN flag. It indicates:
+				If the SYN flag is set (1), that the TCP peer is ECN capable.
+				If the SYN flag is clear (0), that a packet with Congestion Experienced flag set (ECN=11) in the IP header was received during normal transmission.[b] This serves as an indication of network congestion (or impending congestion) to the TCP sender.
+				*/
+
+				// could also count the packet length and store the counts of [0-500], [501-1000], [1000-max]
+
+				if (tcp.CWR) {
+					host.CwrC += 1;
+				}
+				if (tcp.ECE) {
+					host.EceC += 1;
+				}
+				if (tcp.RST) {
+					host.RstC += 1;
+				}
+				if (tcp.SYN) {
+					host.SynC += 1;
+				}
+
+			}
+
+		}
+	}
 
 }
 
@@ -607,8 +742,11 @@ func main() {
 
 	}
 
+	// start pcap listening
+	go pcap_routine(&h1)
+
 	// create a socket to the listener
-	go new_websocket(h1)
+	go new_websocket(&h1)
 
 	for {
 
