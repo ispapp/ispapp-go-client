@@ -27,17 +27,6 @@ Run as root for ping privileges.
 sudo GO111MODULE=off go run ispapp-go-client.go -domain "dev.ispapp.co" -hostKey "yourhostkey"
 ```
 
-# Packaging
-
-Storing a ca-bundle file in ispapp-go-client.go for ease of distribution.
-
-```
-cd tools
-go ca-bundle-to-hex-string.go -in /path/to/domain.ca-bundle
-```
-
-Then copy the text output with no newlines as the `ca_bundle_hex` variable data in /ispapp-go-client.go.
-
 # Building with Static Linking
 
 To build binaries that work without installation or library requirements on the target OS and Architecture.
@@ -108,3 +97,14 @@ solaris/amd64
 windows/386
 windows/amd64
 ```
+
+# Packaging a non-os bundled ca certificate in the program
+
+Storing a ca-bundle file in ispapp-go-client.go for ease of distribution.
+
+```
+cd tools
+go ca-bundle-to-hex-string.go -in /path/to/domain.ca-bundle
+```
+
+Then copy the text output with no newlines as the `ca_bundle_hex` variable data in /ispapp-go-client.go.
