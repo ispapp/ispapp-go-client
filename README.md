@@ -4,8 +4,10 @@ Get the file and run it!
 
 ## MacOS
 
+Replace `##DOMAIN##` and `##HOSTKEY##` then run this command in Terminal.app
+
 ```
-curl -o ~/ispapp-go-client-mac https://raw.githubusercontent.com/ispapp/ispapp-go-client/master/ispapp-go-client-mac && sudo ~/ispapp-go-client-mac -addr "dev.ispapp.co" -hostKey "yourhostkey"
+curl -o ~/ispapp-go-client-mac https://raw.githubusercontent.com/ispapp/ispapp-go-client/master/ispapp-go-client-mac && sudo ~/ispapp-go-client-mac -addr "##DOMAIN##" -hostKey "##HOSTKEY##"
 ```
 
 # Building
