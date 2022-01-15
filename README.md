@@ -42,25 +42,25 @@ Then copy the text output with no newlines as the `ca_bundle_hex` variable data 
 
 To build binaries that work without installation or library requirements on the target OS and Architecture.
 
-###MacOS/darwin on amd64 (intel macs)
+### MacOS/darwin on amd64 (intel macs)
 
 ```
 GO111MODULE=off CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
 ```
 
-###MacOS/darwin on arm (m1 macs)
+### MacOS/darwin on arm (m1 macs)
 
 ```
 GO111MODULE=off CGO_ENABLED=0 GOOS=darwin GOARCH=arm go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
 ```
 
-###Linux on amd64
+### Linux on amd64
 
 ```
 GO111MODULE=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
 ```
 
-###Windows on amd64
+### Windows on amd64
 
 ```
 GO111MODULE=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
