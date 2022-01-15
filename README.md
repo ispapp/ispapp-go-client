@@ -51,19 +51,19 @@ GO111MODULE=off CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -a -o ispapp-go-
 ### MacOS/darwin on arm (m1 macs)
 
 ```
-GO111MODULE=off CGO_ENABLED=0 GOOS=darwin GOARCH=arm go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
+GO111MODULE=off CGO_ENABLED=0 GOOS=darwin GOARCH=arm go build -a -o ispapp-go-client-darwin-arm ispapp-go-client.go
 ```
 
 ### Linux on amd64
 
 ```
-GO111MODULE=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
+GO111MODULE=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o ispapp-go-client-linux-amd64 ispapp-go-client.go
 ```
 
 ### Windows on amd64
 
 ```
-GO111MODULE=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -a -o ispapp-go-client-darwin-amd64 ispapp-go-client.go
+GO111MODULE=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -a -o ispapp-go-client-windows-amd64 ispapp-go-client.go
 ```
 
 Here's a list of os/arch that are supported (there may be more now, `go tool dist list`).
