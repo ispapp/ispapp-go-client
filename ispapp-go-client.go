@@ -236,6 +236,8 @@ func new_websocket(host *Host) {
 	var sendAt = time.Now().Unix()
 
 	go func() {
+
+		// this is the read loop
 		for {
 
 			if (c == nil) {
@@ -406,6 +408,12 @@ func new_websocket(host *Host) {
 	}
 
 	for {
+
+		// this is the write loop
+		if (c == nil) {
+			// this will force a reconnect
+			return
+		}
 
 		//fmt.Printf("attempt for %s\t\t\tauthed=%t\tsendAt=%d\tsendAtDiff=%d\n", host.Login, authed, sendAt, sendAt-time.Now().Unix())
 
