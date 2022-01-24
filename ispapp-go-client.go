@@ -569,7 +569,7 @@ func new_websocket(host *Host) {
 					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"uptime\": %d}", "update", ipaddrstr, uptime_sec)
 				}
 
-				fmt.Printf("%s sending update\n", host.Login)
+				fmt.Printf("%s sending update, sendColData=%t\n", host.Login, sendColData)
 				//fmt.Printf("%s\n", s)
 
 				err = c.WriteMessage(websocket.TextMessage, []byte(s))
