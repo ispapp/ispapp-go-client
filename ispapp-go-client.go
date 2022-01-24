@@ -392,21 +392,17 @@ func new_websocket(host *Host) {
 
 				// send the update at the time requested
 				var sendOffset = host.OutageIntervalSeconds - hr.LastUpdateOffsetSec
-				if (hr.LastUpdateOffsetSec > hr.LastColUpdateOffsetSec) {
-					// sometimes the collector update is required before the next update
+
+				// this will save battery power
+				if (host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec <= sendOffset) {
+					// it is time for a collector update
+					sendColData = true
 					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
+				} else {
+					sendColData = false
 				}
 
 				sendAt = time.Now().Unix() + sendOffset
-
-				// this will save battery power
-				if (hr.LastColUpdateOffsetSec + hr.LastUpdateOffsetSec > host.UpdateIntervalSeconds) {
-					// this update should have collector data
-					sendColData = true
-				} else {
-					// the update does not require collector data
-					sendColData = false
-				}
 
 			}
 
