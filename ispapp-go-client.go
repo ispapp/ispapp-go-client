@@ -237,6 +237,7 @@ func new_websocket(host *Host) {
 	var sendAt = time.Now().Unix()
 
 	var readError = false
+	var sendColData = false
 
 	go func() {
 
@@ -383,6 +384,10 @@ func new_websocket(host *Host) {
 			if (hr.UpdateFast) {
 				// update every second
 				sendAt = time.Now().Unix() + 1
+
+				// always send collector data when updateFast is enabled
+				sendColData = true
+
 			} else {
 
 				// send the update at the time requested
@@ -394,13 +399,15 @@ func new_websocket(host *Host) {
 
 				sendAt = time.Now().Unix() + sendOffset
 
-			}
+				// this will save battery power
+				if (hr.LastColUpdateOffsetSec + hr.LastUpdateOffsetSec > host.UpdateIntervalSeconds) {
+					// this update should have collector data
+					sendColData = true
+				} else {
+					// the update does not require collector data
+					sendColData = false
+				}
 
-			// this will save battery power
-			if (hr.LastColUpdateOffsetSec + hr.LastUpdateOffsetSec > host.UpdateIntervalSeconds) {
-				// this update should have collector data
-			} else {
-				// the update does not require collector data
 			}
 
 			fmt.Printf("send timer set to %d seconds\n", sendAt-time.Now().Unix())
@@ -446,7 +453,6 @@ func new_websocket(host *Host) {
 
 			if (authed) {
 
-				var u_json string = ""
 				var cols Collector
 
 				// create a counter collector
@@ -560,7 +566,12 @@ func new_websocket(host *Host) {
 				}
 
 				// make the update json string
-				s := fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\"%s, \"collectors\": %s, \"uptime\": %d}", "update", ipaddrstr, u_json, string(cols_json), uptime_sec)
+				s := ""
+				if (sendColData) {
+					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"collectors\": %s, \"uptime\": %d}", "update", ipaddrstr, string(cols_json), uptime_sec)
+				} else {
+					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"uptime\": %d}", "update", ipaddrstr, uptime_sec)
+				}
 
 				fmt.Printf("%s sending update\n", host.Login)
 				//fmt.Printf("%s\n", s)
