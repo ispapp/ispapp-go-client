@@ -46,13 +46,13 @@ type Client struct {
 type WsResponse struct {
 	Type			string	`json:"type"`
 	Client			Client	`json:"client"`
-	LastColUpdateOffsetSec	int64	`json:"lastColUpdateOffsetSec"`
-	LastUpdateOffsetSec	int64	`json:"lastUpdateOffsetSec"`
 	UpdateFast		bool	`json:"updateFast"`
 	Error			string	`json:"error"`
 	Cmd			string	`json:"cmd"`
 	Ws_Id			string	`json:"ws_id"`
 	UuidV4			string	`json:"uuidv4"`
+	LastColUpdateOffsetSec	int64	`json:"lastColUpdateOffsetSec"`
+	LastUpdateOffsetSec	int64	`json:"lastUpdateOffsetSec"`
 }
 
 type Host struct {
@@ -69,7 +69,6 @@ type Host struct {
 	OSBuildDate		uint64
 	WanIfName		string
 	UpdateIntervalSeconds	int64		`json:"updateIntervalSeconds"`
-	OutageIntervalSeconds	int64		`json:"outageIntervalSeconds"`
 	CwrC			uint64		`json:"cwrC"`
 	EceC			uint64		`json:"eceC"`
 	RstC			uint64		`json:"rstC"`
@@ -248,7 +247,7 @@ func new_websocket(host *Host) {
 				fmt.Println("error reading wss server response for " + host.Login + ":", err)
 				return
 			}
-			//fmt.Printf("\nrecv: %s", message)
+			//fmt.Printf("\nrecv: %s\n", message)
 
 			var hr WsResponse
 
@@ -259,22 +258,18 @@ func new_websocket(host *Host) {
 
 			//fmt.Printf("hr: %+v\n\n", hr)
 
-			if (hr.Client.Authed && hr.Type == "config") {
-
+			if (hr.Client.Authed) {
 				authed = true
+			}
 
-				// make an update request immediately following the config request
-				sendAt = time.Now().Unix() + 1
+			if (hr.Type == "config") {
 
 				// set the config response intervals
-				host.OutageIntervalSeconds = hr.Client.Host.OutageIntervalSeconds
 				host.UpdateIntervalSeconds = hr.Client.Host.UpdateIntervalSeconds
 
 				fmt.Println(host.Login + " authed via config request")
 
-			}
-
-			if (hr.Type == "cmd") {
+			} else if (hr.Type == "cmd") {
 
 				// execute a command
 				fmt.Printf("executing command: %s\n", hr.Cmd)
@@ -369,25 +364,25 @@ func new_websocket(host *Host) {
 					fmt.Println("sent cmd response for " + host.Login)
 				}
 
-			} else if (hr.UpdateFast) {
-				// update every second
-				sendAt = time.Now().Unix() + 1
+			} else if (hr.Type == "update") {
+
 			} else if (hr.Type == "error") {
 				fmt.Printf("ERROR Received from Server: %s\n", hr.Error)
+
+			}
+
+			if (hr.UpdateFast) {
+				// update every second
+				sendAt = time.Now().Unix() + 1
 			} else {
 				// send with the outage interval normally
-				var sendOffset = host.OutageIntervalSeconds - hr.LastUpdateOffsetSec
-
-				if (sendOffset > host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec) {
-					// use the required time for a collector update
-					// if it is less than the outage interval
-					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
-				}
-
-				fmt.Printf("%s sending update in %d seconds.\n", host.Login, sendOffset)
+				var sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
 
 				sendAt = time.Now().Unix() + sendOffset
+
 			}
+
+			fmt.Printf("send timer set to %d seconds\n", sendAt-time.Now().Unix())
 
 		}
 	}()
@@ -397,6 +392,7 @@ func new_websocket(host *Host) {
 	if (c != nil) {
 
 		//fmt.Printf("sending: %s\n", s)
+		fmt.Printf("sending %d bytes\n", len(s))
 
 		err = c.WriteMessage(websocket.TextMessage, []byte(s))
 		if err != nil {
@@ -411,7 +407,7 @@ func new_websocket(host *Host) {
 
 	for {
 
-		//fmt.Printf("attempt for %s\t\t\tauthed=%t\tsendAt=%d\tsendAtDiff=%d\n", host.Login, authed, sendAt, time.Now().Unix()-sendAt)
+		//fmt.Printf("attempt for %s\t\t\tauthed=%t\tsendAt=%d\tsendAtDiff=%d\n", host.Login, authed, sendAt, sendAt-time.Now().Unix())
 
 		if (time.Now().Unix() > sendAt) {
 
@@ -451,7 +447,7 @@ func new_websocket(host *Host) {
 
 				for pingIndex := range pingHosts {
 
-					fmt.Printf("pinging %s\n", pingHosts[pingIndex])
+					//fmt.Printf("pinging %s\n", pingHosts[pingIndex])
 
 					// ping the ping servers
 					pingError := false
@@ -533,8 +529,8 @@ func new_websocket(host *Host) {
 				// make the update json string
 				s := fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\"%s, \"collectors\": %s, \"uptime\": %d}", "update", ipaddrstr, u_json, string(cols_json), uptime_sec)
 
-				fmt.Printf("sending update to ISPApp: %s\n", s)
-				//fmt.Printf("host: %+v\n", host)
+				fmt.Printf("%s sending update\n", host.Login)
+				//fmt.Printf("%s\n", s)
 
 				err = c.WriteMessage(websocket.TextMessage, []byte(s))
 				if err != nil {
