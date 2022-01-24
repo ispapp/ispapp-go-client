@@ -69,6 +69,7 @@ type Host struct {
 	OSBuildDate		uint64
 	WanIfName		string
 	UpdateIntervalSeconds	int64		`json:"updateIntervalSeconds"`
+	OutageIntervalSeconds	int64		`json:"outageIntervalSeconds"`
 	CwrC			uint64		`json:"cwrC"`
 	EceC			uint64		`json:"eceC"`
 	RstC			uint64		`json:"rstC"`
@@ -273,6 +274,7 @@ func new_websocket(host *Host) {
 
 				// set the config response intervals
 				host.UpdateIntervalSeconds = hr.Client.Host.UpdateIntervalSeconds
+				host.OutageIntervalSeconds = hr.Client.Host.OutageIntervalSeconds
 
 				fmt.Println(host.Login + " authed via config request")
 
@@ -382,11 +384,23 @@ func new_websocket(host *Host) {
 				// update every second
 				sendAt = time.Now().Unix() + 1
 			} else {
-				// send with the outage interval normally
-				var sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
+
+				// send the update at the time requested
+				var sendOffset = host.OutageIntervalSeconds - hr.LastUpdateOffsetSec
+				if (hr.LastUpdateOffsetSec > hr.LastColUpdateOffsetSec) {
+					// sometimes the collector update is required before the next update
+					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
+				}
 
 				sendAt = time.Now().Unix() + sendOffset
 
+			}
+
+			// this will save battery power
+			if (hr.LastColUpdateOffsetSec + hr.LastUpdateOffsetSec > host.UpdateIntervalSeconds) {
+				// this update should have collector data
+			} else {
+				// the update does not require collector data
 			}
 
 			fmt.Printf("send timer set to %d seconds\n", sendAt-time.Now().Unix())
