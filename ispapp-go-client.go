@@ -235,6 +235,8 @@ func new_websocket(host *Host) {
 	var authed bool = false
 	var sendAt = time.Now().Unix()
 
+	var readError = false
+
 	go func() {
 
 		// this is the read loop
@@ -246,7 +248,10 @@ func new_websocket(host *Host) {
 
 			_, message, err := c.ReadMessage()
 			if err != nil {
+				// kill the read loop then force a reconnect
+				// or have missing data
 				fmt.Println("error reading wss server response for " + host.Login + ":", err)
+				readError = true
 				return
 			}
 			//fmt.Printf("\nrecv: %s\n", message)
@@ -412,7 +417,13 @@ func new_websocket(host *Host) {
 		// this is the write loop
 		if (c == nil) {
 			// this will force a reconnect
-			return
+			break
+		}
+
+		if (readError) {
+			// force a reconnect
+			c.Close()
+			break
 		}
 
 		//fmt.Printf("attempt for %s\t\t\tauthed=%t\tsendAt=%d\tsendAtDiff=%d\n", host.Login, authed, sendAt, sendAt-time.Now().Unix())
