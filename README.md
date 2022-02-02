@@ -2,9 +2,7 @@
 
 Here are the instructions for each different Operating System.
 
-First you need to <a href="https://go.dev">install Go</a> on your Operating System.
-
-You need to modify the -hostKey and -domain arguments.
+First you need to <a href="https://go.dev" target="_new">install Go</a> on your Operating System.
 
 ## MacOS
 
@@ -15,6 +13,9 @@ export GO111MODULE=off
 go get github.com/go-ping/ping
 go get github.com/gorilla/websocket
 go get github.com/google/gopacket
+
+git clone https://github.com/ispapp/ispapp-go-client
+cd ispapp-go-client
 ```
 
 Then modify the -hostKey and -domain arguments and run this command.
@@ -32,12 +33,17 @@ export GO111MODULE=off
 go get github.com/go-ping/ping
 go get github.com/gorilla/websocket
 go get github.com/google/gopacket
+
+git clone https://github.com/ispapp/ispapp-go-client
+cd ispapp-go-client
 ```
 
 Then modify the -hostKey and -domain arguments and run this command.
 
+You need to run this command as Administrator, press Windows+R to open the Run box.  Type "cmd" into the box and then press Ctrl+Shift+Enter to run the command as administrator.
+
 ```
-sudo GO111MODULE=off go run ispapp-go-client.go -domain "dev.ispapp.co" -hostKey "yourhostkey"
+GO111MODULE=off go run ispapp-go-client.go -domain "dev.ispapp.co" -hostKey "yourhostkey"
 ```
 
 ## Linux
@@ -49,6 +55,9 @@ export GO111MODULE=off
 go get github.com/go-ping/ping
 go get github.com/gorilla/websocket
 go get github.com/google/gopacket
+
+git clone https://github.com/ispapp/ispapp-go-client
+cd ispapp-go-client
 ```
 
 Then modify the -hostKey and -domain arguments and run this command.
