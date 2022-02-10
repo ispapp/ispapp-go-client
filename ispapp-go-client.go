@@ -35,7 +35,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-0.1"
+var clientInfo string = "ispapp-go-client-0.2"
 var pingHosts [][]byte
 
 type Client struct {
@@ -538,14 +538,21 @@ func new_websocket(host *Host) {
 					cmd.Stdout = &out
 					cmd.Stderr = &stderr
 					_ = cmd.Run()
+
 					// split output
 					// expects
 					// { sec = 1641489984, usec = 872066 } Thu Jan  6 20:26:24 2022
 					oo := strings.Split(out.String(), " ")
-					oo[3] = strings.TrimRight(oo[3], ",")
-					//fmt.Printf("oo: %q\n", oo[3])
-					uptime_sec, _ = strconv.ParseUint(oo[3], 10, 64)
-					uptime_sec = uint64(now.Unix()) - uptime_sec
+
+					// this sometimes returns nothing or too little information on MacOS 12.1
+					if (len(oo) < 4) {
+						fmt.Printf("sysctl -n kern.boottime returned and invalid response: %s\n", out)
+					} else {
+						oo[3] = strings.TrimRight(oo[3], ",")
+						//fmt.Printf("oo: %q\n", oo[3])
+						uptime_sec, _ = strconv.ParseUint(oo[3], 10, 64)
+						uptime_sec = uint64(now.Unix()) - uptime_sec
+					}
 
 				} else if (runtime.GOOS == "linux") {
 
