@@ -161,6 +161,23 @@ type Collector struct {
 	Counter		[]Counter	`json:"counter"`
 }
 
+func comm(s string) (string) {
+
+	cmd := exec.Command("./command.sh", s)
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	_ = cmd.Run()
+
+	if (len(stderr.String()) > 0) {
+		fmt.Printf("comm() stderr for `%s`\n\t%s\n", s, stderr.String())
+	}
+
+	return out.String()
+
+}
+
 func new_websocket(host *Host) {
 
 	u := url.URL{Scheme: "wss", Host: domain + ":" + strconv.Itoa(port), Path: "/ws"}
@@ -531,22 +548,16 @@ func new_websocket(host *Host) {
 
 				if (runtime.GOOS == "darwin") {
 
-					cmd := exec.Command("sysctl", "-n", "kern.boottime")
-					cmd.Stdin = strings.NewReader(" ")
-					var out bytes.Buffer
-					var stderr bytes.Buffer
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					_ = cmd.Run()
+					out := comm("sysctl -n kern.boottime")
 
 					// split output
 					// expects
 					// { sec = 1641489984, usec = 872066 } Thu Jan  6 20:26:24 2022
-					oo := strings.Split(out.String(), " ")
+					oo := strings.Split(out, " ")
 
 					// this sometimes returns nothing or too little information on MacOS 12.1
 					if (len(oo) < 4) {
-						fmt.Printf("sysctl -n kern.boottime returned and invalid response: %s\n", out)
+						fmt.Printf("sysctl -n kern.boottime returned an invalid response: %s\n", out)
 					} else {
 						oo[3] = strings.TrimRight(oo[3], ",")
 						//fmt.Printf("oo: %q\n", oo[3])
@@ -554,10 +565,19 @@ func new_websocket(host *Host) {
 						uptime_sec = uint64(now.Unix()) - uptime_sec
 					}
 
+					// test for darkwake, `pmset -g` there are many opportunities to wake
+					// with different services, like WOL (womp for some reason, wake on magic ethernet LOL)
+					// anyhow, if it keeps waking up too slowly with regards to the interval
+					// you will only get offline notifications
+					// sysctl -a | grep -iE "dark|wake"
+
+					o := comm("sysctl -a | grep -iE \"dark|wake\"")
+
+					fmt.Printf("darkwake test output: %s\n", o)
+
 				} else if (runtime.GOOS == "linux") {
 
 					cmd := exec.Command("awk", "'{print $1}'", "/proc/uptime")
-					cmd.Stdin = strings.NewReader(" ")
 					var out bytes.Buffer
 					var stderr bytes.Buffer
 					cmd.Stdout = &out
@@ -751,7 +771,6 @@ if (h1.Login == "") {
 
 		// run system_profiler and get json output
 		cmd := exec.Command("system_profiler", "-json")
-		cmd.Stdin = strings.NewReader(" ")
 		var out bytes.Buffer
 		var stderr bytes.Buffer
 		cmd.Stdout = &out
@@ -794,7 +813,6 @@ if (h1.Login == "") {
 
 		// get os from uname
 		cmd = exec.Command("uname", "-srm")
-		cmd.Stdin = strings.NewReader(" ")
 		out.Reset()
 		stderr.Reset()
 		cmd.Stdout = &out
@@ -806,7 +824,6 @@ if (h1.Login == "") {
 
 		// get os from uname
 		cmd := exec.Command("uname", "-srm")
-		cmd.Stdin = strings.NewReader(" ")
 		var out bytes.Buffer
 		var stderr bytes.Buffer
 		cmd.Stdout = &out
