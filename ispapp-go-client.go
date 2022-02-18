@@ -565,15 +565,34 @@ func new_websocket(host *Host) {
 						uptime_sec = uint64(now.Unix()) - uptime_sec
 					}
 
+					// Darkwake = display stays dark when comp wakes and performs some tasks.
+
 					// test for darkwake, `pmset -g` there are many opportunities to wake
 					// with different services, like WOL (womp for some reason, wake on magic ethernet LOL)
-					// anyhow, if it keeps waking up too slowly with regards to the interval
-					// you will only get offline notifications
+
+					// power nap does this
+					// macos 12.1 wakes every 2 hours by default, that's not reasonable
+					// and changing it to every 5 minutes would discharge the battery too quickly
+
+					// it seems the most reasonable to detect a power supply then wake the device every 5 minutes
+					// to send an update, but power nap does not allow modification of the interval
+
+					// best to test if dark wake is enabled and not send an update in those periods
 					// sysctl -a | grep -iE "dark|wake"
+					// sysctl -a | grep "vm.darkwake_mode" // 0 or 1
 
-					o := comm("sysctl -a | grep -iE \"dark|wake\"")
+					o := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
 
-					fmt.Printf("darkwake test output: %s\n", o)
+					on, _ := strconv.ParseInt(o, 10, 64)
+
+					//fmt.Printf("darkwake mode: %d\n", on)
+
+					if (on == 1) {
+						// darkwake is on, do not send an update
+						sendAt = time.Now().Unix() + 5
+						//fmt.Printf("not sending update, darkwake is active\n")
+						continue
+					}
 
 				} else if (runtime.GOOS == "linux") {
 
