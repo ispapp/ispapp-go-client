@@ -8,6 +8,7 @@ import (
 	"context"
 	"strings"
 	"bytes"
+	"reflect"
 	b64 "encoding/base64"
 	"encoding/hex"
 	"os/exec"
@@ -218,6 +219,7 @@ func new_websocket(host *Host) {
 	d := websocket.Dialer{TLSClientConfig: &tls.Config{RootCAs: roots}}
 
 	c, _, err := d.Dial(u.String(), nil)
+
 	if err != nil {
 		fmt.Println("dial:", err)
 		fmt.Println("reconnecting")
@@ -225,6 +227,13 @@ func new_websocket(host *Host) {
 		new_websocket(host)
 	}
 	defer c.Close()
+
+	// get the tls.Conn
+	uc := c.UnderlyingConn()
+
+	fmt.Println(reflect.TypeOf(uc))
+	fmt.Printf("%+v\n", uc)
+	uc.conn.SetKeepAlive(true)
 
 	// set host.WanIfName
 	var ipaddrstr, port, iperr = net.SplitHostPort(c.LocalAddr().String())
@@ -581,18 +590,19 @@ func new_websocket(host *Host) {
 					// sysctl -a | grep -iE "dark|wake"
 					// sysctl -a | grep "vm.darkwake_mode" // 0 or 1
 
-					o := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
+					o := comm("sysctl -a | grep -iE \"dark|wake\"")
+					//o := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
 
-					on, _ := strconv.ParseInt(o, 10, 64)
+					//on, _ := strconv.ParseInt(o, 10, 64)
 
-					//fmt.Printf("darkwake mode: %d\n", on)
+					fmt.Printf("darkwake mode: %s\n", o)
 
-					if (on == 1) {
+					//if (on == 1) {
 						// darkwake is on, do not send an update
-						sendAt = time.Now().Unix() + 5
+						//sendAt = time.Now().Unix() + 5
 						//fmt.Printf("not sending update, darkwake is active\n")
-						continue
-					}
+						//continue
+					//}
 
 				} else if (runtime.GOOS == "linux") {
 
