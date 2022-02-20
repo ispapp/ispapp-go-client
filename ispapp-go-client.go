@@ -233,7 +233,7 @@ func new_websocket(host *Host) {
 
 	fmt.Println(reflect.TypeOf(uc))
 	fmt.Printf("%+v\n", uc)
-	uc.conn.SetKeepAlive(true)
+	//uc.conn.SetKeepAlive(true)
 
 	// set host.WanIfName
 	var ipaddrstr, port, iperr = net.SplitHostPort(c.LocalAddr().String())
