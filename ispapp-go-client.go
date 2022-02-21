@@ -5,10 +5,8 @@ import (
 	"log"
 	"fmt"
 	"net"
-	"context"
 	"strings"
 	"bytes"
-	//"reflect"
 	b64 "encoding/base64"
 	"encoding/hex"
 	"os/exec"
@@ -162,7 +160,7 @@ type Collector struct {
 	Counter		[]Counter	`json:"counter"`
 }
 
-func comm(s string) (string) {
+func comm(s string) (string, string) {
 
 	cmd := exec.Command("./command.sh", s)
 	var out bytes.Buffer
@@ -175,7 +173,7 @@ func comm(s string) (string) {
 		fmt.Printf("comm() stderr for `%s`\n\t%s\n", s, stderr.String())
 	}
 
-	return out.String()
+	return out.String(), stderr.String()
 
 }
 
@@ -308,88 +306,12 @@ func new_websocket(host *Host) {
 				// execute a command
 				fmt.Printf("executing command: %s\n", hr.Cmd)
 
-				ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-				defer cancel()
+				out, out_err := comm(hr.Cmd)
 
-				cl := strings.Split(hr.Cmd, " ")
-				fmt.Printf("cl (%d): %q\n", len(cl), cl)
-
-				var out bytes.Buffer
-				var stderr bytes.Buffer
-
-				// believe this, go wants you to write an assembler bus width to execute commands with different numbers of arguments
-				if (len(cl) == 1) {
-
-					cmd := exec.CommandContext(ctx, cl[0])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 2) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 3) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 4) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 5) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 6) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4], cl[5])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 7) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4], cl[5], cl[6])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else if (len(cl) == 8) {
-
-					cmd := exec.CommandContext(ctx, cl[0], cl[1], cl[2], cl[3], cl[4], cl[5], cl[6], cl[7])
-
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					cmd.Run()
-
-				} else {
-					stderr.Write([]byte("Go cannot handle more than some number of arguments to a command, try fewer.  The maximum for the ispapp-go-client is 7.  Won't be long before token bugs arrive to make sure you can properly parse ' and \" while escaping!"))
-				}
-
-				//fmt.Printf("command result: %s\n", out.String())
+				//fmt.Printf("command result: %s\n", out)
 
 				// return {type: "cmd", "uuidv4": _, "stdout": "b64()", "stderr": "b64()", "ws_id": _}
-				cmd_r := fmt.Sprintf("{\"type\": \"cmd\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", hr.UuidV4, b64.StdEncoding.EncodeToString(out.Bytes()), b64.StdEncoding.EncodeToString(stderr.Bytes()), hr.Ws_Id)
+				cmd_r := fmt.Sprintf("{\"type\": \"cmd\", \"uuidv4\": \"%s\", \"stdout\": \"%s\", \"stderr\": \"%s\", \"ws_id\": \"%s\"}", hr.UuidV4, b64.StdEncoding.EncodeToString([]byte(out)), b64.StdEncoding.EncodeToString([]byte(out_err)), hr.Ws_Id)
 
 				err = c.WriteMessage(websocket.TextMessage, []byte(cmd_r))
 				if err != nil {
@@ -555,7 +477,7 @@ func new_websocket(host *Host) {
 
 				if (runtime.GOOS == "darwin") {
 
-					out := comm("sysctl -n kern.boottime")
+					out, _ := comm("sysctl -n kern.boottime")
 
 					// split output
 					// expects
@@ -588,29 +510,24 @@ func new_websocket(host *Host) {
 					// sysctl -a | grep -iE "dark|wake"
 					// sysctl -a | grep "vm.darkwake_mode" // 0 or 1
 
-					o := comm("sysctl -a | grep -iE \"dark|wake\"")
-					//o := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
+					o, _ := comm("sysctl -a | grep -iE \"dark|wake\"")
+					//o, _ := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
 
-					//on, _ := strconv.ParseInt(o, 10, 64)
+					on, _ := strconv.ParseInt(o, 10, 64)
 
 					fmt.Printf("darkwake mode: %s\n", o)
 
-					//if (on == 1) {
+					if (on == 1) {
 						// darkwake is on, do not send an update
-						//sendAt = time.Now().Unix() + 5
-						//fmt.Printf("not sending update, darkwake is active\n")
-						//continue
-					//}
+						sendAt = time.Now().Unix() + 5
+						fmt.Printf("not sending update, darkwake is active\n")
+						continue
+					}
 
 				} else if (runtime.GOOS == "linux") {
 
-					cmd := exec.Command("awk", "'{print $1}'", "/proc/uptime")
-					var out bytes.Buffer
-					var stderr bytes.Buffer
-					cmd.Stdout = &out
-					cmd.Stderr = &stderr
-					_ = cmd.Run()
-					uptime_sec, _ = strconv.ParseUint(strings.Replace(out.String(), "\n", "", -1), 10, 64)
+					out, _ := comm("awk '{print $1}' /proc/uptime")
+					uptime_sec, _ = strconv.ParseUint(strings.Replace(out, "\n", "", -1), 10, 64)
 
 				} else if (runtime.GOOS == "windows") {
 				}
