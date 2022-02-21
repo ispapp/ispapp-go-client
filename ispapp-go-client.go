@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-0.4"
+var clientInfo string = "ispapp-go-client-0.5"
 var pingHosts [][]byte
 
 type Client struct {
