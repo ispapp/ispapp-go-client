@@ -8,7 +8,7 @@ import (
 	"context"
 	"strings"
 	"bytes"
-	"reflect"
+	//"reflect"
 	b64 "encoding/base64"
 	"encoding/hex"
 	"os/exec"
@@ -36,7 +36,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-0.3"
+var clientInfo string = "ispapp-go-client-0.4"
 var pingHosts [][]byte
 
 type Client struct {
@@ -228,12 +228,10 @@ func new_websocket(host *Host) {
 	}
 	defer c.Close()
 
-	// get the tls.Conn
-	uc := c.UnderlyingConn()
-
-	fmt.Println(reflect.TypeOf(uc))
-	fmt.Printf("%+v\n", uc)
-	//uc.conn.SetKeepAlive(true)
+	// set keep alive to true on the tcp socket
+	// apple laptops (for sure) keep the socket open in darkmode according to documentation
+	// at the time of this published commit
+	err = c.UnderlyingConn().(*tls.Conn).NetConn().(*net.TCPConn).SetKeepAlive(true)
 
 	// set host.WanIfName
 	var ipaddrstr, port, iperr = net.SplitHostPort(c.LocalAddr().String())
