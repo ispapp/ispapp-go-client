@@ -34,8 +34,10 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-0.5"
+var clientInfo string = "ispapp-go-client-0.6"
 var pingHosts [][]byte
+var pings []Ping
+var collector_wait = 0
 
 type Client struct {
 	Authed			bool	`json:"authed"`
@@ -174,6 +176,62 @@ func comm(s string) (string, string) {
 	}
 
 	return out.String(), stderr.String()
+
+}
+
+func ping_loop() {
+
+	for (true) {
+
+		select {
+			case <-time.After(200 * time.Millisecond):
+
+				if (collector_wait == 0) {
+
+					// wait again
+					collector_wait = 1
+
+					//fmt.Printf("ping loop\n")
+
+					for pingIndex := range pingHosts {
+
+						//fmt.Printf("pinging %s\n", pingHosts[pingIndex])
+
+						// ping the ping servers
+						pingError := false
+						pinger, perr := ping.NewPinger(string(pingHosts[pingIndex]))
+						if perr != nil {
+							fmt.Println("ping error: ", perr)
+							pingError = true
+						}
+
+						pinger.Count = 5
+						pinger.Timeout = time.Second * 1
+						pinger.Interval = time.Millisecond * 20
+						pinger.SetPrivileged(true)
+						perr = pinger.Run() // Blocks until finished.
+						if perr != nil {
+							fmt.Println("ping error: ", perr)
+							pingError = true
+						}
+						stats := pinger.Statistics()
+
+						pings[pingIndex].Host = string(pingHosts[pingIndex])
+						if (!pingError) {
+							pings[pingIndex].AvgRtt = float64(stats.AvgRtt) / float64(time.Millisecond)
+							pings[pingIndex].MinRtt = float64(stats.MinRtt) / float64(time.Millisecond)
+							pings[pingIndex].MaxRtt = float64(stats.MaxRtt) / float64(time.Millisecond)
+							pings[pingIndex].Loss = int64(stats.PacketLoss)
+						}
+						//fmt.Printf("ping stats: %+v\n", stats)
+
+					}
+
+				}
+
+		}
+
+	}
 
 }
 
@@ -329,7 +387,7 @@ func new_websocket(host *Host) {
 
 			if (hr.UpdateFast) {
 				// update every second
-				sendAt = time.Now().Unix() + 1
+				sendAt = time.Now().Unix() + 0
 
 				// always send collector data when updateFast is enabled
 				sendColData = true
@@ -395,6 +453,8 @@ func new_websocket(host *Host) {
 
 			if (authed) {
 
+				collector_wait = 0
+
 				var cols Collector
 
 				// create a counter collector
@@ -424,41 +484,7 @@ func new_websocket(host *Host) {
 				c3.Point = host.SynC
 				cols.Counter[3] = c3
 
-				cols.Ping = make([]Ping, len(pingHosts))
-
-				for pingIndex := range pingHosts {
-
-					//fmt.Printf("pinging %s\n", pingHosts[pingIndex])
-
-					// ping the ping servers
-					pingError := false
-					pinger, perr := ping.NewPinger(string(pingHosts[pingIndex]))
-					if perr != nil {
-						fmt.Println("ping error: ", perr)
-						pingError = true
-					}
-
-					pinger.Count = 5
-					pinger.Timeout = time.Second * 1
-					pinger.Interval = time.Millisecond * 20
-					pinger.SetPrivileged(true)
-					perr = pinger.Run() // Blocks until finished.
-					if perr != nil {
-						fmt.Println("ping error: ", perr)
-						pingError = true
-					}
-					stats := pinger.Statistics()
-
-					cols.Ping[pingIndex].Host = string(pingHosts[pingIndex])
-					if (!pingError) {
-						cols.Ping[pingIndex].AvgRtt = float64(stats.AvgRtt) / float64(time.Millisecond)
-						cols.Ping[pingIndex].MinRtt = float64(stats.MinRtt) / float64(time.Millisecond)
-						cols.Ping[pingIndex].MaxRtt = float64(stats.MaxRtt) / float64(time.Millisecond)
-						cols.Ping[pingIndex].Loss = int64(stats.PacketLoss)
-					}
-					//fmt.Printf("ping stats: %+v\n", stats)
-
-				}
+				cols.Ping = pings
 
 				cols_json, jerr := json.Marshal(cols)
 				if jerr != nil {
@@ -510,12 +536,12 @@ func new_websocket(host *Host) {
 					// sysctl -a | grep -iE "dark|wake"
 					// sysctl -a | grep "vm.darkwake_mode" // 0 or 1
 
-					o, _ := comm("sysctl -a | grep -iE \"dark|wake\"")
-					//o, _ := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
+					//o, _ := comm("sysctl -a | grep -iE \"dark|wake\"")
+					o, _ := comm("sysctl -a | grep vm.darkwake_mode | awk '{split($0,a,\": \"); print a[2]}'")
 
 					on, _ := strconv.ParseInt(o, 10, 64)
 
-					fmt.Printf("darkwake mode: %s\n", o)
+					//fmt.Printf("darkwake mode: %s\n", o)
 
 					if (on == 1) {
 						// darkwake is on, do not send an update
@@ -549,8 +575,8 @@ func new_websocket(host *Host) {
 					break
 				}
 
-				// give the recv loop time to update sendAt
-				time.Sleep(1 * time.Second)
+				// maximum update rate, twice per second
+				time.Sleep(500 * time.Millisecond)
 
 			}
 
@@ -631,16 +657,16 @@ func pcap_routine(host *Host) {
 			// could also count the packet length and store the counts of [0-500], [501-1000], [1000-max]
 
 			if (tcp.CWR) {
-				host.CwrC += 1;
+				host.CwrC += 1
 			}
 			if (tcp.ECE) {
-				host.EceC += 1;
+				host.EceC += 1
 			}
 			if (tcp.RST) {
-				host.RstC += 1;
+				host.RstC += 1
 			}
 			if (tcp.SYN) {
-				host.SynC += 1;
+				host.SynC += 1
 			}
 
 		}
@@ -651,151 +677,155 @@ func pcap_routine(host *Host) {
 
 func main() {
 
-fmt.Println("USAGE:")
-fmt.Println("\t./ispapp-go-client -domain \"dev.ispapp.co\" -hostKey \"yourhostkey\" -port 8550 -if \"en0\" -certPath \"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\"\n\n-port, -if and -certPath are not required.\n\n")
+	fmt.Println("USAGE:")
+	fmt.Println("\t./ispapp-go-client -domain \"dev.ispapp.co\" -hostKey \"yourhostkey\" -port 8550 -if \"en0\" -certPath \"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\"\n\n-port, -if and -certPath are not required.\n\n")
 
-flag.StringVar(&domain, "domain", "unknown", "ISPApp domain")
-flag.StringVar(&hostKey, "hostKey", "", "ISPApp Host Key")
-flag.IntVar(&port, "port", 8550, "ISPApp port")
-flag.StringVar(&loginInterface, "if", "", "Name of Interface for Login MAC Address")
-flag.StringVar(&pemFile, "certPath", "/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle", "TLS certificate file path")
+	flag.StringVar(&domain, "domain", "unknown", "ISPApp domain")
+	flag.StringVar(&hostKey, "hostKey", "", "ISPApp Host Key")
+	flag.IntVar(&port, "port", 8550, "ISPApp port")
+	flag.StringVar(&loginInterface, "if", "", "Name of Interface for Login MAC Address")
+	flag.StringVar(&pemFile, "certPath", "/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle", "TLS certificate file path")
 
-flag.Parse()
+	flag.Parse()
 
-if (domain == "unknown") {
-	os.Exit(1)
-}
-
-interrupt := make(chan os.Signal, 1)
-signal.Notify(interrupt, os.Interrupt)
-
-// add ping hosts
-pingHosts = make([][]byte, 0)
-pingHosts = append(pingHosts, []byte("aws-eu-west-2-ping.ispapp.co"))
-pingHosts = append(pingHosts, []byte("aws-us-east-1-ping.ispapp.co"))
-pingHosts = append(pingHosts, []byte("aws-us-west-1-ping.ispapp.co"))
-pingHosts = append(pingHosts, []byte("aws-sa-east-1-ping.ispapp.co"))
-
-// connect this host's mac address as a websocket client
-var h1 Host
-
-// get mac address
-interfaces, _ := net.Interfaces()
-for _, interf := range interfaces {
-
-	if (loginInterface == "") {
-		if (interf.Name == "en0" || interf.Name == "en1" || interf.Name == "eth0") {
-			// the first wifi or wired interface on a MacOS, Linux
-			h1.Login = interf.HardwareAddr.String()
-			break
-		}
-	} else {
-		if (interf.Name == loginInterface) {
-			h1.Login = interf.HardwareAddr.String()
-			break
-		}
+	if (domain == "unknown") {
+		os.Exit(1)
 	}
 
-}
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
 
-if (h1.Login == "") {
-	fmt.Printf("Specify the network interface to use the MAC Address of for the login with -if\n")
-	os.Exit(1)
-	}
+	// add ping hosts
+	pingHosts = make([][]byte, 0)
+	pingHosts = append(pingHosts, []byte("aws-eu-west-2-ping.ispapp.co"))
+	pingHosts = append(pingHosts, []byte("aws-us-east-1-ping.ispapp.co"))
+	pingHosts = append(pingHosts, []byte("aws-us-west-1-ping.ispapp.co"))
+	pingHosts = append(pingHosts, []byte("aws-sa-east-1-ping.ispapp.co"))
 
-	// set the computer information
-	h1.OS = runtime.GOOS
+	pings = make([]Ping, len(pingHosts))
 
-	fmt.Printf("GOOS: %s\n", runtime.GOOS)
-	fmt.Printf("Getting system information...\n")
+	go ping_loop()
 
-	if (runtime.GOOS == "darwin") {
+	// connect this host's mac address as a websocket client
+	var h1 Host
 
-		h1.Make = "Apple"
+	// get mac address
+	interfaces, _ := net.Interfaces()
+	for _, interf := range interfaces {
 
-		// run system_profiler and get json output
-		cmd := exec.Command("system_profiler", "-json")
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		_ = cmd.Run()
-		//fmt.Printf("%s\n", out.String())
-
-		var omap map[string]interface{}
-		if jerr := json.Unmarshal(out.Bytes(), &omap); jerr != nil {
-			log.Fatal(jerr)
+		if (loginInterface == "") {
+			if (interf.Name == "en0" || interf.Name == "en1" || interf.Name == "eth0") {
+				// the first wifi or wired interface on a MacOS, Linux
+				h1.Login = interf.HardwareAddr.String()
+				break
+			}
+		} else {
+			if (interf.Name == loginInterface) {
+				h1.Login = interf.HardwareAddr.String()
+				break
+			}
 		}
-		//fmt.Printf("%+v\n", omap)
-
-		// print all root keys from system_profiler
-		/*
-		for n := range omap {
-			fmt.Printf("%s\n", n)
-		}
-		*/
-
-		//fmt.Printf("%+v\n", omap["SPHardwareDataType"])
-		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"])
-		// the data is unmarshaled to an interface{} after the root level
-		// so use a type assertion `.()` of []interface{} to access the array, in order to access the [0] element
-		// then use a type assertion of map[string]interface{} to access level root+1 fields
-		// or make a struct
-		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"])
-
-		// what you would expect to be able to do and what you need to do because of it being compiled code
-		//h1.CPUInfo = omap["SPHardwareDataType"]["cpu_type"] + " " + omap["SPHardwareDataType"]["current_processor_speed"]
-		h1.CPUInfo = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["cpu_type"].(string) + " " + omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["current_processor_speed"].(string)
-		//h1.Model = omap["SPHardwareDataType"]["machine_name"]
-		h1.Model = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_name"].(string)
-		//h1.ModelNumber = omap["SPHardwareDataType"]["machine_model"]
-		h1.ModelNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_model"].(string)
-		//h1.SerialNumber = omap["SPHardwareDataType"]["serial_number"]
-		h1.SerialNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["serial_number"].(string)
-		//h1.OSVersion = omap["SPSoftwareDataType"]["os_version"]
-		h1.OSVersion = omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"].(string)
-
-		// get os from uname
-		cmd = exec.Command("uname", "-srm")
-		out.Reset()
-		stderr.Reset()
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		_ = cmd.Run()
-		h1.OS = strings.Replace(out.String(), "\n", "", -1)
-
-	} else if (runtime.GOOS == "linux") {
-
-		// get os from uname
-		cmd := exec.Command("uname", "-srm")
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		_ = cmd.Run()
-		h1.OS = strings.Replace(out.String(), "\n", "", -1)
-
-	} else if (runtime.GOOS == "windows") {
-
-		h1.OS = "Windows"
 
 	}
 
-	// start pcap listening
-	go pcap_routine(&h1)
-
-	// create a socket to the listener
-	go new_websocket(&h1)
-
-	for {
-
-		select {
-			// wait for interrupt
-		case <-interrupt:
-			fmt.Println("close")
-			os.Exit(0)
+	if (h1.Login == "") {
+		fmt.Printf("Specify the network interface to use the MAC Address of for the login with -if\n")
+		os.Exit(1)
 		}
 
-	}
+		// set the computer information
+		h1.OS = runtime.GOOS
+
+		fmt.Printf("GOOS: %s\n", runtime.GOOS)
+		fmt.Printf("Getting system information...\n")
+
+		if (runtime.GOOS == "darwin") {
+
+			h1.Make = "Apple"
+
+			// run system_profiler and get json output
+			cmd := exec.Command("system_profiler", "-json")
+			var out bytes.Buffer
+			var stderr bytes.Buffer
+			cmd.Stdout = &out
+			cmd.Stderr = &stderr
+			_ = cmd.Run()
+			//fmt.Printf("%s\n", out.String())
+
+			var omap map[string]interface{}
+			if jerr := json.Unmarshal(out.Bytes(), &omap); jerr != nil {
+				log.Fatal(jerr)
+			}
+			//fmt.Printf("%+v\n", omap)
+
+			// print all root keys from system_profiler
+			/*
+			for n := range omap {
+				fmt.Printf("%s\n", n)
+			}
+			*/
+
+			//fmt.Printf("%+v\n", omap["SPHardwareDataType"])
+			//fmt.Printf("%+v\n", omap["SPSoftwareDataType"])
+			// the data is unmarshaled to an interface{} after the root level
+			// so use a type assertion `.()` of []interface{} to access the array, in order to access the [0] element
+			// then use a type assertion of map[string]interface{} to access level root+1 fields
+			// or make a struct
+			//fmt.Printf("%+v\n", omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"])
+
+			// what you would expect to be able to do and what you need to do because of it being compiled code
+			//h1.CPUInfo = omap["SPHardwareDataType"]["cpu_type"] + " " + omap["SPHardwareDataType"]["current_processor_speed"]
+			h1.CPUInfo = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["cpu_type"].(string) + " " + omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["current_processor_speed"].(string)
+			//h1.Model = omap["SPHardwareDataType"]["machine_name"]
+			h1.Model = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_name"].(string)
+			//h1.ModelNumber = omap["SPHardwareDataType"]["machine_model"]
+			h1.ModelNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_model"].(string)
+			//h1.SerialNumber = omap["SPHardwareDataType"]["serial_number"]
+			h1.SerialNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["serial_number"].(string)
+			//h1.OSVersion = omap["SPSoftwareDataType"]["os_version"]
+			h1.OSVersion = omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"].(string)
+
+			// get os from uname
+			cmd = exec.Command("uname", "-srm")
+			out.Reset()
+			stderr.Reset()
+			cmd.Stdout = &out
+			cmd.Stderr = &stderr
+			_ = cmd.Run()
+			h1.OS = strings.Replace(out.String(), "\n", "", -1)
+
+		} else if (runtime.GOOS == "linux") {
+
+			// get os from uname
+			cmd := exec.Command("uname", "-srm")
+			var out bytes.Buffer
+			var stderr bytes.Buffer
+			cmd.Stdout = &out
+			cmd.Stderr = &stderr
+			_ = cmd.Run()
+			h1.OS = strings.Replace(out.String(), "\n", "", -1)
+
+		} else if (runtime.GOOS == "windows") {
+
+			h1.OS = "Windows"
+
+		}
+
+		// start pcap listening
+		go pcap_routine(&h1)
+
+		// create a socket to the listener
+		go new_websocket(&h1)
+
+		for {
+
+			select {
+				// wait for interrupt
+			case <-interrupt:
+				fmt.Println("close")
+				os.Exit(0)
+			}
+
+		}
 
 }
