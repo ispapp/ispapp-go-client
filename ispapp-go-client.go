@@ -287,7 +287,10 @@ func new_websocket(host *Host) {
 	// set keep alive to true on the tcp socket
 	// apple laptops (for sure) keep the socket open in darkmode according to documentation
 	// at the time of this published commit
-	err = c.UnderlyingConn().(*tls.Conn).NetConn().(*net.TCPConn).SetKeepAlive(true)
+	// wait for 1.18 to be released
+	// the problem is that go does not have a preprocessor, so you cannot do things
+	// like test if the version is adequate or tell the user that the version is inadequate in the program
+	//err = c.UnderlyingConn().(*tls.Conn).NetConn().(*net.TCPConn).SetKeepAlive(true)
 
 	// set host.WanIfName
 	var ipaddrstr, port, iperr = net.SplitHostPort(c.LocalAddr().String())
