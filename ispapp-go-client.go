@@ -75,6 +75,7 @@ type Host struct {
 	EceC			uint64		`json:"eceC"`
 	RstC			uint64		`json:"rstC"`
 	SynC			uint64		`json:"synC"`
+	UrgC			uint64		`json:"urgC"`
 }
 
 type Interface struct {
@@ -461,7 +462,7 @@ func new_websocket(host *Host) {
 				var cols Collector
 
 				// create a counter collector
-				cols.Counter = make([]Counter, 4)
+				cols.Counter = make([]Counter, 5)
 
 				// add tcp cwr
 				var c0 Counter = Counter{}
@@ -486,6 +487,12 @@ func new_websocket(host *Host) {
 				c3.Name = "TCP SYN Packets"
 				c3.Point = host.SynC
 				cols.Counter[3] = c3
+
+				// add tcp urg
+				var c4 Counter = Counter{}
+				c4.Name = "TCP URG (Urgent) Packets"
+				c4.Point = host.UrgC
+				cols.Counter[4] = c4
 
 				cols.Ping = pings
 
@@ -670,6 +677,88 @@ func pcap_routine(host *Host) {
 			}
 			if (tcp.SYN) {
 				host.SynC += 1
+			}
+
+			/* TOS
+
+			RFC 2474 explains how the byte (octet) used in IPv6 and IPv4 headers is allocated for describing the TOS "value or desire or wish" set by the origin or a router in the path to the destination of the packet
+
+			A replacement header field, called the DS field, is defined, which is
+   intended to supersede the existing definitions of the IPv4 TOS octet
+   [RFC791] and the IPv6 Traffic Class octet [IPv6].
+
+			Gopacket says - https://pkg.go.dev/github.com/google/gopacket/layers#TCP
+
+type TCP struct {
+	BaseLayer
+	SrcPort, DstPort                           TCPPort
+	Seq                                        uint32
+	Ack                                        uint32
+	DataOffset                                 uint8
+	FIN, SYN, RST, PSH, ACK, URG, ECE, CWR, NS bool
+	Window                                     uint16
+	Checksum                                   uint16
+	Urgent                                     uint16
+
+	Options []TCPOption
+	Padding []byte
+	// contains filtered or unexported fields
+}
+
+			I guess they don't know best that we should use RFC 2474 and that "stuff" is like gimme 100 monies or "what is that, are you serious?"
+
+			They sure do provide the URG flag though, and that should be important like TOS
+
+			// you can get the TOS byte here
+			// as a uint8, imagine that!
+
+			IPv4 - https://github.com/google/gopacket/blob/master/layers/ip4.go#L47
+
+// IPv4 is the header of an IP packet.
+type IPv4 struct {
+	BaseLayer
+	Version    uint8
+	IHL        uint8
+	TOS        uint8
+	Length     uint16
+	Id         uint16
+	Flags      IPv4Flag
+	FragOffset uint16
+	TTL        uint8
+	Protocol   IPProtocol
+	Checksum   uint16
+	SrcIP      net.IP
+	DstIP      net.IP
+	Options    []IPv4Option
+	Padding    []byte
+}
+
+			IPv6 - https://github.com/google/gopacket/blob/master/layers/ip6.go#L33
+			// that well must be pumping for school
+
+type IPv6 struct {
+	// http://www.networksorcery.com/enp/protocol/ipv6.htm
+	BaseLayer
+	Version      uint8
+	TrafficClass uint8
+	FlowLabel    uint32
+	Length       uint16
+	NextHeader   IPProtocol
+	HopLimit     uint8
+	SrcIP        net.IP
+	DstIP        net.IP
+	HopByHop     *IPv6HopByHop
+	// hbh will be pointed to by HopByHop if that layer exists.
+	hbh IPv6HopByHop
+}
+
+			*/
+
+			// write the TOS stuff from the IP
+			// once they fix https://github.com/google/gopacket/issues/940
+
+			if (tcp.URG) {
+				host.UrgC += 1
 			}
 
 		}
