@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-0.6"
+var clientInfo string = "ispapp-go-client-0.7"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -56,6 +56,11 @@ type WsResponse struct {
 	LastUpdateOffsetSec	int64	`json:"lastUpdateOffsetSec"`
 }
 
+type UniqueIps struct {
+	Ips			[]string
+	Times			[]int64
+}
+
 type Host struct {
 	Login			string
 	Make			string
@@ -69,6 +74,7 @@ type Host struct {
 	FirmwareVersion		string
 	OSBuildDate		uint64
 	WanIfName		string
+	WanIps			[]string
 	UpdateIntervalSeconds	int64		`json:"updateIntervalSeconds"`
 	OutageIntervalSeconds	int64		`json:"outageIntervalSeconds"`
 	CwrC			uint64		`json:"cwrC"`
@@ -76,6 +82,9 @@ type Host struct {
 	RstC			uint64		`json:"rstC"`
 	SynC			uint64		`json:"synC"`
 	UrgC			uint64		`json:"urgC"`
+	UniqueIpCount		uint64		`json:"uniqueIpCount"`
+	InBytes			uint64
+	OutBytes		uint64
 }
 
 type Interface struct {
@@ -302,8 +311,8 @@ func new_websocket(host *Host) {
 	for _, interf := range interfaces {
 		if addrs, err := interf.Addrs(); err == nil {
 			var found = false
-			for index, addr := range addrs {
-				fmt.Println("[", index, "]", interf.Name, ">", addr)
+			for _, addr := range addrs {
+				//fmt.Println("[", index, "]", interf.Name, ">", addr)
 				if (strings.Contains(addr.String(), ipaddrstr)) {
 					found = true
 					break
@@ -312,6 +321,14 @@ func new_websocket(host *Host) {
 			if (found) {
 				fmt.Printf("wan interface found: %s\n", interf.Name)
 				host.WanIfName = interf.Name
+
+				// add IP addresses of the interface
+				for index, addr := range addrs {
+					fmt.Println("[", index, "]", interf.Name, ">", addr)
+					var wips = strings.Split(addr.String(), "/")
+					host.WanIps = append(host.WanIps, wips[0])
+				}
+
 				break
 			}
 		}
@@ -462,7 +479,7 @@ func new_websocket(host *Host) {
 				var cols Collector
 
 				// create a counter collector
-				cols.Counter = make([]Counter, 5)
+				cols.Counter = make([]Counter, 8)
 
 				// add tcp cwr
 				var c0 Counter = Counter{}
@@ -493,6 +510,24 @@ func new_websocket(host *Host) {
 				c4.Name = "TCP URG (Urgent) Packets"
 				c4.Point = host.UrgC
 				cols.Counter[4] = c4
+
+				// add number of connections with unique ips
+				var c5 Counter = Counter{}
+				c5.Name = "# of Connections with unique IP Addresses"
+				c5.Point = host.UniqueIpCount
+				cols.Counter[5] = c5
+
+				// in bytes
+				var c6 Counter = Counter{}
+				c6.Name = "WAN Bytes In"
+				c6.Point = host.InBytes
+				cols.Counter[6] = c6
+
+				// in bytes
+				var c7 Counter = Counter{}
+				c7.Name = "WAN Bytes Out"
+				c7.Point = host.OutBytes
+				cols.Counter[7] = c7
 
 				cols.Ping = pings
 
@@ -605,6 +640,43 @@ func new_websocket(host *Host) {
 
 }
 
+func sumIps(uniqueIps UniqueIps, ip string) (UniqueIps) {
+
+	// insert an IP address if it is unique
+
+	var insert = true
+	for c := range uniqueIps.Ips {
+		if (ip == uniqueIps.Ips[c]) {
+			// no need to re-add
+			insert = false
+		}
+	}
+
+	if (insert) {
+		uniqueIps.Ips = append(uniqueIps.Ips, ip)
+		uniqueIps.Times = append(uniqueIps.Times, time.Now().Unix())
+	}
+
+	// remove expired IP addresses (N seconds)
+	var tip = make([]string, 0)
+	var tipt = make([]int64, 0)
+	for c := range uniqueIps.Ips {
+		if (time.Now().Unix() - 60*10 > uniqueIps.Times[c]) {
+			// remove it
+		} else {
+			// add it
+			tip = append(tip, uniqueIps.Ips[c])
+			tipt = append(tipt, uniqueIps.Times[c])
+		}
+	}
+
+	uniqueIps.Ips = tip
+	uniqueIps.Times = tipt
+
+	return uniqueIps
+
+}
+
 func pcap_routine(host *Host) {
 
 	// don't forget this, if Apple ever fixes it in MacOS
@@ -622,20 +694,20 @@ func pcap_routine(host *Host) {
 	}
 
 	// capture live traffic on an interface, third option is for promiscuous mode
-	handle, err := pcap.OpenLive(host.WanIfName, 1600, false, pcap.BlockForever)
+	// promiscuous mode is required for ethernet frames
+	handle, err := pcap.OpenLive(host.WanIfName, 1600, true, pcap.BlockForever)
 
 	if (err != nil) {
 		panic(err)
 	}
 
-	// 802.11 monitor mode does not work on MacOS 12
-	// it does not work in Wireshark either
-	// as there are no 802.11 frames to use for counting retransmits
-	// we should set a filter to only capture TCP traffic so less resources are used
-	filter_err := handle.SetBPFFilter("tcp")
-	if (filter_err != nil) {
-		panic(err)
-	}
+	// set a filter to only capture TCP traffic so less resources are used
+	//filter_err := handle.SetBPFFilter("tcp")
+	//if (filter_err != nil) {
+	//	panic(err)
+	//}
+
+	var uniqueIps UniqueIps
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	for packet := range packetSource.Packets() {
@@ -643,13 +715,85 @@ func pcap_routine(host *Host) {
 		// this shows all packet information
 		//fmt.Printf("packet: %+v\n", packet)
 
+		// for finding the direction
+		var packetSrcIpV4 string
+		var packetDstIpV4 string
+		var packetSrcIpV6 string
+		var packetDstIpV6 string
+
+		if pppLayer := packet.Layer(layers.LayerTypePPP); pppLayer != nil {
+
+			//ppp, _ := pppLayer.(*layers.PPP)
+			//fmt.Printf("%+v\n", ppp)
+
+		}
+
+		if ipv6Layer := packet.Layer(layers.LayerTypeIPv6); ipv6Layer != nil {
+
+			ipv6, _ := ipv6Layer.(*layers.IPv6)
+			// SrcIP
+			// DstIP
+			// Protocol TCP/UDP
+			// TOS
+			// Length
+
+			uniqueIps = sumIps(uniqueIps, string(ipv6.SrcIP))
+			uniqueIps = sumIps(uniqueIps, string(ipv6.DstIP))
+
+			packetSrcIpV6 = ipv6.SrcIP.String()
+			packetDstIpV6 = ipv6.DstIP.String()
+
+			//fmt.Printf("%+v\n", ipv6)
+
+		}
+
+		if ipv4Layer := packet.Layer(layers.LayerTypeIPv4); ipv4Layer != nil {
+
+			ipv4, _ := ipv4Layer.(*layers.IPv4)
+			// SrcIP
+			// DstIP
+			// Protocol TCP/UDP
+			// TOS
+			// Length
+
+			uniqueIps = sumIps(uniqueIps, string(ipv4.SrcIP))
+			uniqueIps = sumIps(uniqueIps, string(ipv4.DstIP))
+
+			packetSrcIpV4 = ipv4.SrcIP.String()
+			packetDstIpV4 = ipv4.DstIP.String()
+
+			//fmt.Printf("%+v\n", ipv4)
+
+		}
+
+		//fmt.Printf("number of connections with unique IPs: %d\n", len(uniqueIps.Ips))
+		host.UniqueIpCount = uint64(len(uniqueIps.Ips))
+
+		// get packet direction by comparing packet src and dst with host.WanIps (ip addresses on the wan interface)
+		//fmt.Printf("packet length: %d\n", len(packet.Data()))
+		//fmt.Printf("src ips:\t%s\t%s\n", packetSrcIpV4, packetSrcIpV6)
+		//fmt.Printf("dst ips:\t%s\t%s\n", packetDstIpV4, packetDstIpV6)
+		for d := range host.WanIps {
+			if (host.WanIps[d] == packetSrcIpV4 || host.WanIps[d] == packetSrcIpV6) {
+				// from this host
+				host.OutBytes = host.OutBytes + uint64(len(packet.Data()))
+			} else if (host.WanIps[d] == packetDstIpV4 || host.WanIps[d] == packetDstIpV6) {
+				// to this host
+				host.InBytes = host.InBytes + uint64(len(packet.Data()))
+			}
+		}
+
+		//fmt.Printf("WAN in bytes: %d out bytes: %d\n", host.InBytes, host.OutBytes)
+
 		if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
 
 			// Get actual TCP data from this layer
 			tcp, _ := tcpLayer.(*layers.TCP)
 			//fmt.Printf("TCP from src port %d to dst port %d with RST: %t and len(%d)\n", tcp.SrcPort, tcp.DstPort, tcp.RST, len(tcp.Payload))
+			//fmt.Printf("tcp packet: %+v\n", tcp)
 
-			// loop through the map of all counted ports and increment those that are counted
+			//for ipi := range uniquePacketIps {
+				//if (ipi == tcp.SrcIp
 
 			// count special bits
 			// CWR - packet may have been modified in response to network congestion
