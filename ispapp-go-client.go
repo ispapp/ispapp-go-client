@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-0.7"
+var clientInfo string = "ispapp-go-client-0.8"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -85,6 +85,8 @@ type Host struct {
 	UniqueIpCount		uint64		`json:"uniqueIpCount"`
 	InBytes			uint64
 	OutBytes		uint64
+	InPackets		uint64
+	OutPackets		uint64
 }
 
 type Interface struct {
@@ -479,7 +481,7 @@ func new_websocket(host *Host) {
 				var cols Collector
 
 				// create a counter collector
-				cols.Counter = make([]Counter, 8)
+				cols.Counter = make([]Counter, 6)
 
 				// add tcp cwr
 				var c0 Counter = Counter{}
@@ -511,24 +513,25 @@ func new_websocket(host *Host) {
 				c4.Point = host.UrgC
 				cols.Counter[4] = c4
 
-				// add number of connections with unique ips
+				// add number with unique ips with one or more sockets connected
 				var c5 Counter = Counter{}
-				c5.Name = "# of Connections with unique IP Addresses"
+				c5.Name = "# of unique IP Addresses connected"
 				c5.Point = host.UniqueIpCount
 				cols.Counter[5] = c5
 
-				// in bytes
-				var c6 Counter = Counter{}
-				c6.Name = "WAN Bytes In"
-				c6.Point = host.InBytes
-				cols.Counter[6] = c6
+				// interface collector
+				cols.Interface = make([]Interface, 1)
 
-				// in bytes
-				var c7 Counter = Counter{}
-				c7.Name = "WAN Bytes Out"
-				c7.Point = host.OutBytes
-				cols.Counter[7] = c7
+				// WAN interface
+				var wanif Interface = Interface{}
+				wanif.If = host.WanIfName
+				wanif.RecBytes = host.InBytes
+				wanif.SentBytes = host.OutBytes
+				wanif.RecPackets = host.InPackets
+				wanif.SentPackets = host.OutPackets
+				cols.Interface[0] = wanif
 
+				// ping collector
 				cols.Ping = pings
 
 				cols_json, jerr := json.Marshal(cols)
@@ -536,12 +539,10 @@ func new_websocket(host *Host) {
 					fmt.Println("error with json.Marshal for update", jerr)
 				}
 
-				// get wan ip
+				// get wan ip from the socket used to connect to the ISPApp server
 				var ipaddrstr, port, iperr = net.SplitHostPort(c.LocalAddr().String())
 				_ = port
 				_ = iperr
-
-				now := time.Now()
 
 				// get uptime
 				var uptime_sec uint64 = 0
@@ -562,7 +563,7 @@ func new_websocket(host *Host) {
 						oo[3] = strings.TrimRight(oo[3], ",")
 						//fmt.Printf("oo: %q\n", oo[3])
 						uptime_sec, _ = strconv.ParseUint(oo[3], 10, 64)
-						uptime_sec = uint64(now.Unix()) - uptime_sec
+						uptime_sec = uint64(time.Now().Unix()) - uptime_sec
 					}
 
 					// Darkwake = display stays dark when comp wakes and performs some tasks.
@@ -777,9 +778,11 @@ func pcap_routine(host *Host) {
 			if (host.WanIps[d] == packetSrcIpV4 || host.WanIps[d] == packetSrcIpV6) {
 				// from this host
 				host.OutBytes = host.OutBytes + uint64(len(packet.Data()))
+				host.OutPackets = host.OutPackets + 1
 			} else if (host.WanIps[d] == packetDstIpV4 || host.WanIps[d] == packetDstIpV6) {
 				// to this host
 				host.InBytes = host.InBytes + uint64(len(packet.Data()))
+				host.InPackets = host.InPackets + 1
 			}
 		}
 
