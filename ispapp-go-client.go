@@ -90,7 +90,8 @@ type Host struct {
 }
 
 type Interface struct {
-	If			string	`json:"if,omitempty"`
+	If			string	`json:"if"`
+	Mac			string	`json:"mac"`
 	RecBytes		uint64	`json:"recBytes"`
 	RecPackets		uint64	`json:"recPackets"`
 	RecErrors		uint64	`json:"recErrors"`
@@ -99,70 +100,185 @@ type Interface struct {
 	SentPackets		uint64	`json:"sentPackets"`
 	SentErrors		uint64	`json:"sentErrors"`
 	SentDrops		uint64	`json:"sentDrops"`
+	CarrierChanges		uint64	`json:"carrierChanges"`
+	Macs			uint64	`json:"macs"`
 }
 
 type Ping struct {
-	Host		string	`json:"host,omitempty"`
+	Host		string	`json:"host"`
 	AvgRtt		float64	`json:"avgRtt"`
 	MinRtt		float64	`json:"minRtt"`
 	MaxRtt		float64	`json:"maxRtt"`
-	Loss		int64	`json:"loss"`
+	Loss		float64	`json:"loss"`
 }
 
 type Load struct {
-	One			int64	`json:"one"`
-	Five			int64	`json:"five"`
-	Fifteen			int64	`json:"fifteen"`
-	ProcessCount		int64	`json:"processCount"`
+	One			float64	`json:"one"`
+	Five			float64	`json:"five"`
+	Fifteen			float64	`json:"fifteen"`
+	ProcessCount		uint64	`json:"processCount"`
 }
 
 type Memory struct {
-	Total			int64	`json:"total"`
-	Free			int64	`json:"free"`
-	Buffers			int64	`json:"buffers"`
-	Cache			int64	`json:"cache"`
+	Total			uint64	`json:"total"`
+	Free			uint64	`json:"free"`
+	Buffers			uint64	`json:"buffers"`
+	Cache			uint64	`json:"cache"`
 }
 
 type Disk struct {
-	Mount			string	`json:"mount,omitempty"`
-	Used			int64	`json:"used"`
-	Avail			int64	`json:"avail"`
+	Mount			string	`json:"mount"`
+	Used			uint64	`json:"used"`
+	Avail			uint64	`json:"avail"`
+}
+
+type ConnDetails struct {
+	UpdateRetries		uint64	`json:"updateRetries"`
+}
+
+type AudioOutput struct {
+	Name			string	`json:"name"`
+	Volume			float64	`json:"volume"`
 }
 
 type System struct {
 	Load		Load	`json:"load"`
 	Memory		Memory	`json:"memory"`
 	Disks		[]Disk	`json:"disks"`
+	ConnDetails	ConnDetails	`json:"connDetails"`
+	AudioOutput	[]AudioOutput	`json:"audioOutput"`
 }
 
 type Station struct {
-	Mac			string	`json:"mac,omitempty"`
+	Mac			string	`json:"mac"`
 	Info			string	`json:"info"`
-	Rssi			int64	`json:"rssi"`
-	RecBytes		int64	`json:"recBytes"`
-	SentBytes		int64	`json:"sentBytes"`
+	Rssi			float64	`json:"rssi"`
+	RecBytes		uint64	`json:"recBytes"`
+	SentBytes		uint64	`json:"sentBytes"`
+	Ccq			float64	`json:"ccq"`
+	Noise			float64	`json:"noise"`
+	Signal0			float64		`json:"signal0"`
+	Signal1			float64		`json:"signal1"`
+	Signal2			float64		`json:"signal2"`
+	Signal3			float64		`json:"signal3"`
+	ExpectedRate		uint64		`json:"expectedRate"`
+	AssocTime		uint64		`json:"assocTime"`
+	BeaconLoss		uint64		`json:"beaconLoss"`
+}
+
+type WirelessInterface struct {
+	If			string		`json:"if"`
+	Ssid			string		`json:"ssid"`
+	Key			string		`json:"key"`
+	Keytypes		string		`json:"keytypes"`
 }
 
 type Wap struct {
-	Interface		string		`json:"interface,omitempty"`
+	Interface		string		`json:"interface"`
+	Ssid			string		`json:"ssid,omitempty"`
 	Stations		[]Station	`json:"stations"`
-	Signal0			int64		`json:"signal0"`
-	Signal1			int64		`json:"signal1"`
-	Signal2			int64		`json:"signal2"`
-	Signal3			int64		`json:"signal3"`
-	Noise			int64		`json:"noise"`
+	Signal0			float64		`json:"signal0"`
+	Signal1			float64		`json:"signal1"`
+	Signal2			float64		`json:"signal2"`
+	Signal3			float64		`json:"signal3"`
+	Noise			float64		`json:"noise"`
 }
 
-type Mac string
+type TcpCollector struct {
+	UniqueIps		uint64		`json:"uniqueIps"`
+	SlowedPairPackets	uint64		`json:"slowedPairPackets"`
+	Cwr			uint64		`json:"cwr"`
+	Ece			uint64		`json:"ece"`
+	Rst			uint64		`json:"rst"`
+	Syn			uint64		`json:"syn"`
+	Urg			uint64		`json:"urg"`
+}
 
-type Arp struct {
-	Interface		string	`json:"interface,omitempty"`
-	Macs			[]Mac	`json:"macs"`
+type Alt struct {
+	Name		string		`json:"name"`
+	Value		float64		`json:"value"`
+}
+
+type Baro struct {
+	Name		string		`json:"name"`
+	Value		float64		`json:"value"`
+}
+
+type Batt struct {
+	Name		string		`json:"name"`
+	Charge		float64		`json:"charge"`
+	Voltage		float64		`json:"voltage"`
+	Amperage	float64		`json:"amperage"`
+	Temp		float64		`json:"temp"`
+}
+
+type Spl struct {
+	Name		string		`json:"name"`
+	Duration	float64		`json:"duration"`
+	RangeSize	uint64		`json:"rangeSize"`
+	Counts		[]uint64	`json:"counts"`
+}
+
+type Prox struct {
+	Name		string		`json:"name"`
+	Value		float64		`json:"value"`
+}
+
+type Camera struct {
+	Name		string		`json:"name"`
+	MotionCount	uint64		`json:"motionCount"`
+	BodyCount	uint64		`json:"bodyCount"`
+	AnimalCount	uint64		`json:"animalCount"`
+	HandCount	uint64		`json:"handCount"`
+	FaceCount	uint64		`json:"faceCount"`
+	AvgDistance	float64		`json:"avgDistance"`
+	LightPct	float64		`json:"lightPct"`
+}
+
+type Env struct {
+	Name		string		`json:"name"`
+	Pressure	float64		`json:"pressure"`
+	Humidity	float64		`json:"humidity"`
+	Temp		float64		`json:"temp"`
+	Airflow		float64		`json:"airflow"`
+}
+
+type Sensor struct {
+	Alt		[]Alt		`json:"alt"`
+	Baro		[]Baro		`json:"baro"`
+	Batt		[]Batt		`json:"batt"`
+	Spl		[]Spl		`json:"spl"`
+	Prox		[]Prox		`json:"prox"`
+	Camera		[]Camera	`json:"camera"`
+	Env		[]Env		`json:"env"`
+}
+
+type LocationCollector struct {
+	Name		string
+	Lat		float64
+	Lng		float64
+}
+
+type Gauge struct {
+	Name		string	`json:"name"`
+	Point		float64	`json:"point"`
 }
 
 type Counter struct {
-	Name			string	`json:"name"`
-	Point			uint64	`json:"point"`
+	Name		string	`json:"name"`
+	Point		uint64	`json:"point"`
+}
+
+type MGauge struct {
+	Name		string		`json:"name"`
+	PointNames	[]string	`json:"pointNames"`
+	Points		[]float64	`json:"points"`
+}
+
+type MCounter struct {
+	Name		string		`json:"name"`
+	PointNames	[]string	`json:"pointNames"`
+	Points		[]uint64	`json:"points"`
 }
 
 type Collector struct {
@@ -170,8 +286,12 @@ type Collector struct {
 	Ping		[]Ping		`json:"ping"`
 	System		System		`json:"system"`
 	Wap		[]Wap		`json:"wap"`
-	Arp		[]Arp		`json:"arp"`
+	Tcp		TcpCollector	`json:"tcp"`
+	Sensor		Sensor		`json:"sensor"`
+	Gauge		[]Gauge		`json:"gauge"`
 	Counter		[]Counter	`json:"counter"`
+	MGauge		[]MGauge	`json:"mgauge"`
+	MCounter	[]MCounter	`json:"mcounter"`
 }
 
 func comm(s string) (string, string) {
@@ -233,9 +353,9 @@ func ping_loop() {
 							pings[pingIndex].AvgRtt = float64(stats.AvgRtt) / float64(time.Millisecond)
 							pings[pingIndex].MinRtt = float64(stats.MinRtt) / float64(time.Millisecond)
 							pings[pingIndex].MaxRtt = float64(stats.MaxRtt) / float64(time.Millisecond)
-							pings[pingIndex].Loss = int64(stats.PacketLoss)
+							pings[pingIndex].Loss = float64(stats.PacketLoss)
+							//fmt.Println(pings[pingIndex].Host, float64(stats.PacketLoss), pings[pingIndex].AvgRtt)
 						}
-						//fmt.Printf("ping stats: %+v\n", stats)
 
 					}
 
@@ -438,7 +558,7 @@ func new_websocket(host *Host) {
 		}
 	}()
 
-	s := fmt.Sprintf("{\"type\": \"%s\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"fw\": \"%s\", \"fwVersion\": \"%s\", \"osBuildDate\": %d}", "config", host.Login, hostKey, clientInfo, host.Make, host.Model, host.ModelNumber, host.SerialNumber, host.CPUInfo, host.OS, host.OSVersion, host.Firmware, host.FirmwareVersion, host.OSBuildDate)
+	s := fmt.Sprintf("{\"type\": \"%s\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"fw\": \"%s\", \"fwVersion\": \"%s\", \"osBuildDate\": %d, \"webshellSupport\": true, \"bandwidthTestSupport\": false, \"firmwareUpgradeSupport\": false}", "config", host.Login, hostKey, clientInfo, host.Make, host.Model, host.ModelNumber, host.SerialNumber, host.CPUInfo, host.OS, host.OSVersion, host.Firmware, host.FirmwareVersion, host.OSBuildDate)
 
 	if (c != nil) {
 
@@ -480,44 +600,15 @@ func new_websocket(host *Host) {
 
 				var cols Collector
 
-				// create a counter collector
-				cols.Counter = make([]Counter, 6)
+				// create a tcp collector
+				cols.Tcp = TcpCollector{}
 
-				// add tcp cwr
-				var c0 Counter = Counter{}
-				c0.Name = "TCP CWR Packets"
-				c0.Point = host.CwrC
-				cols.Counter[0] = c0
-
-				// add tcp ece
-				var c1 Counter = Counter{}
-				c1.Name = "TCP ECE Packets"
-				c1.Point = host.EceC
-				cols.Counter[1] = c1
-
-				// add tcp rst
-				var c2 Counter = Counter{}
-				c2.Name = "TCP RST Packets"
-				c2.Point = host.RstC
-				cols.Counter[2] = c2
-
-				// add tcp syn
-				var c3 Counter = Counter{}
-				c3.Name = "TCP SYN Packets"
-				c3.Point = host.SynC
-				cols.Counter[3] = c3
-
-				// add tcp urg
-				var c4 Counter = Counter{}
-				c4.Name = "TCP URG (Urgent) Packets"
-				c4.Point = host.UrgC
-				cols.Counter[4] = c4
-
-				// add number with unique ips with one or more sockets connected
-				var c5 Counter = Counter{}
-				c5.Name = "# of unique IP Addresses connected"
-				c5.Point = host.UniqueIpCount
-				cols.Counter[5] = c5
+				cols.Tcp.UniqueIps = host.UniqueIpCount
+				cols.Tcp.Cwr = host.CwrC
+				cols.Tcp.Ece = host.EceC
+				cols.Tcp.Rst = host.RstC
+				cols.Tcp.Syn = host.SynC
+				cols.Tcp.Urg = host.UrgC
 
 				// interface collector
 				cols.Interface = make([]Interface, 1)
