@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.0"
+var clientInfo string = "ispapp-go-client-1.1"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -313,53 +313,44 @@ func comm(s string) (string, string) {
 
 func ping_loop() {
 
-	for (true) {
+	if (collector_wait == 0) {
 
-		select {
-			case <-time.After(200 * time.Millisecond):
+		// wait again
+		collector_wait = 1
 
-				if (collector_wait == 0) {
+		//fmt.Printf("ping loop\n")
 
-					// wait again
-					collector_wait = 1
+		for pingIndex := range pingHosts {
 
-					//fmt.Printf("ping loop\n")
+			//fmt.Printf("pinging %s\n", pingHosts[pingIndex])
 
-					for pingIndex := range pingHosts {
+			// ping the ping servers
+			pingError := false
+			pinger, perr := ping.NewPinger(string(pingHosts[pingIndex]))
+			if perr != nil {
+				fmt.Println("ping error: ", perr)
+				pingError = true
+			}
 
-						//fmt.Printf("pinging %s\n", pingHosts[pingIndex])
+			pinger.Count = 5
+			pinger.Timeout = time.Second * 1
+			pinger.Interval = time.Millisecond * 20
+			pinger.SetPrivileged(true)
+			perr = pinger.Run() // Blocks until finished.
+			if perr != nil {
+				fmt.Println("ping error: ", perr)
+				pingError = true
+			}
+			stats := pinger.Statistics()
 
-						// ping the ping servers
-						pingError := false
-						pinger, perr := ping.NewPinger(string(pingHosts[pingIndex]))
-						if perr != nil {
-							fmt.Println("ping error: ", perr)
-							pingError = true
-						}
-
-						pinger.Count = 5
-						pinger.Timeout = time.Second * 1
-						pinger.Interval = time.Millisecond * 20
-						pinger.SetPrivileged(true)
-						perr = pinger.Run() // Blocks until finished.
-						if perr != nil {
-							fmt.Println("ping error: ", perr)
-							pingError = true
-						}
-						stats := pinger.Statistics()
-
-						pings[pingIndex].Host = string(pingHosts[pingIndex])
-						if (!pingError) {
-							pings[pingIndex].AvgRtt = float64(stats.AvgRtt) / float64(time.Millisecond)
-							pings[pingIndex].MinRtt = float64(stats.MinRtt) / float64(time.Millisecond)
-							pings[pingIndex].MaxRtt = float64(stats.MaxRtt) / float64(time.Millisecond)
-							pings[pingIndex].Loss = float64(stats.PacketLoss)
-							//fmt.Println(pings[pingIndex].Host, float64(stats.PacketLoss), pings[pingIndex].AvgRtt)
-						}
-
-					}
-
-				}
+			pings[pingIndex].Host = string(pingHosts[pingIndex])
+			if (!pingError) {
+				pings[pingIndex].AvgRtt = float64(stats.AvgRtt) / float64(time.Millisecond)
+				pings[pingIndex].MinRtt = float64(stats.MinRtt) / float64(time.Millisecond)
+				pings[pingIndex].MaxRtt = float64(stats.MaxRtt) / float64(time.Millisecond)
+				pings[pingIndex].Loss = float64(stats.PacketLoss)
+				//fmt.Println(pings[pingIndex].Host, float64(stats.PacketLoss), pings[pingIndex].AvgRtt)
+			}
 
 		}
 
@@ -1036,7 +1027,23 @@ func main() {
 
 	pings = make([]Ping, len(pingHosts))
 
-	go ping_loop()
+	// run a thread to ping
+	ping_loop_ticker := time.NewTicker(5 * time.Second)
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case t := <-ping_loop_ticker.C:
+				//fmt.Println("Tick at", t)
+				ping_loop()
+			}
+		}
+	}()
+
+	//ping_loop_ticker.Stop()
+	//done <- true
 
 	// connect this host's mac address as a websocket client
 	var h1 Host
