@@ -1036,6 +1036,7 @@ func main() {
 			case <-done:
 				return
 			case t := <-ping_loop_ticker.C:
+				_ = t
 				//fmt.Println("Tick at", t)
 				ping_loop()
 			}
