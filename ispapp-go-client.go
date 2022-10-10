@@ -1071,101 +1071,101 @@ func main() {
 	if (h1.Login == "") {
 		fmt.Printf("Specify the network interface to use the MAC Address of for the login with -if\n")
 		os.Exit(1)
+	}
+
+	// set the computer information
+	h1.OS = runtime.GOOS
+
+	fmt.Printf("GOOS: %s\n", runtime.GOOS)
+	fmt.Printf("Getting system information...\n")
+
+	if (runtime.GOOS == "darwin") {
+
+		h1.Make = "Apple"
+
+		// run system_profiler and get json output
+		cmd := exec.Command("system_profiler", "-json")
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		_ = cmd.Run()
+		//fmt.Printf("%s\n", out.String())
+
+		var omap map[string]interface{}
+		if jerr := json.Unmarshal(out.Bytes(), &omap); jerr != nil {
+			log.Fatal(jerr)
+		}
+		//fmt.Printf("%+v\n", omap)
+
+		// print all root keys from system_profiler
+		/*
+		for n := range omap {
+			fmt.Printf("%s\n", n)
+		}
+		*/
+
+		//fmt.Printf("%+v\n", omap["SPHardwareDataType"])
+		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"])
+		// the data is unmarshaled to an interface{} after the root level
+		// so use a type assertion `.()` of []interface{} to access the array, in order to access the [0] element
+		// then use a type assertion of map[string]interface{} to access level root+1 fields
+		// or make a struct
+		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"])
+
+		// what you would expect to be able to do and what you need to do because of it being compiled code
+		//h1.CPUInfo = omap["SPHardwareDataType"]["cpu_type"] + " " + omap["SPHardwareDataType"]["current_processor_speed"]
+		h1.CPUInfo = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["cpu_type"].(string) + " " + omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["current_processor_speed"].(string)
+		//h1.Model = omap["SPHardwareDataType"]["machine_name"]
+		h1.Model = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_name"].(string)
+		//h1.ModelNumber = omap["SPHardwareDataType"]["machine_model"]
+		h1.ModelNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_model"].(string)
+		//h1.SerialNumber = omap["SPHardwareDataType"]["serial_number"]
+		h1.SerialNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["serial_number"].(string)
+		//h1.OSVersion = omap["SPSoftwareDataType"]["os_version"]
+		h1.OSVersion = omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"].(string)
+
+		// get os from uname
+		cmd = exec.Command("uname", "-srm")
+		out.Reset()
+		stderr.Reset()
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		_ = cmd.Run()
+		h1.OS = strings.Replace(out.String(), "\n", "", -1)
+
+	} else if (runtime.GOOS == "linux") {
+
+		// get os from uname
+		cmd := exec.Command("uname", "-srm")
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		_ = cmd.Run()
+		h1.OS = strings.Replace(out.String(), "\n", "", -1)
+
+	} else if (runtime.GOOS == "windows") {
+
+		h1.OS = "Windows"
+
+	}
+
+	// start pcap listening
+	go pcap_routine(&h1)
+
+	// create a socket to the listener
+	go new_websocket(&h1)
+
+	for {
+
+		select {
+			// wait for interrupt
+		case <-interrupt:
+			fmt.Println("close")
+			os.Exit(0)
 		}
 
-		// set the computer information
-		h1.OS = runtime.GOOS
-
-		fmt.Printf("GOOS: %s\n", runtime.GOOS)
-		fmt.Printf("Getting system information...\n")
-
-		if (runtime.GOOS == "darwin") {
-
-			h1.Make = "Apple"
-
-			// run system_profiler and get json output
-			cmd := exec.Command("system_profiler", "-json")
-			var out bytes.Buffer
-			var stderr bytes.Buffer
-			cmd.Stdout = &out
-			cmd.Stderr = &stderr
-			_ = cmd.Run()
-			//fmt.Printf("%s\n", out.String())
-
-			var omap map[string]interface{}
-			if jerr := json.Unmarshal(out.Bytes(), &omap); jerr != nil {
-				log.Fatal(jerr)
-			}
-			//fmt.Printf("%+v\n", omap)
-
-			// print all root keys from system_profiler
-			/*
-			for n := range omap {
-				fmt.Printf("%s\n", n)
-			}
-			*/
-
-			//fmt.Printf("%+v\n", omap["SPHardwareDataType"])
-			//fmt.Printf("%+v\n", omap["SPSoftwareDataType"])
-			// the data is unmarshaled to an interface{} after the root level
-			// so use a type assertion `.()` of []interface{} to access the array, in order to access the [0] element
-			// then use a type assertion of map[string]interface{} to access level root+1 fields
-			// or make a struct
-			//fmt.Printf("%+v\n", omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"])
-
-			// what you would expect to be able to do and what you need to do because of it being compiled code
-			//h1.CPUInfo = omap["SPHardwareDataType"]["cpu_type"] + " " + omap["SPHardwareDataType"]["current_processor_speed"]
-			h1.CPUInfo = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["cpu_type"].(string) + " " + omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["current_processor_speed"].(string)
-			//h1.Model = omap["SPHardwareDataType"]["machine_name"]
-			h1.Model = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_name"].(string)
-			//h1.ModelNumber = omap["SPHardwareDataType"]["machine_model"]
-			h1.ModelNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_model"].(string)
-			//h1.SerialNumber = omap["SPHardwareDataType"]["serial_number"]
-			h1.SerialNumber = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["serial_number"].(string)
-			//h1.OSVersion = omap["SPSoftwareDataType"]["os_version"]
-			h1.OSVersion = omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"].(string)
-
-			// get os from uname
-			cmd = exec.Command("uname", "-srm")
-			out.Reset()
-			stderr.Reset()
-			cmd.Stdout = &out
-			cmd.Stderr = &stderr
-			_ = cmd.Run()
-			h1.OS = strings.Replace(out.String(), "\n", "", -1)
-
-		} else if (runtime.GOOS == "linux") {
-
-			// get os from uname
-			cmd := exec.Command("uname", "-srm")
-			var out bytes.Buffer
-			var stderr bytes.Buffer
-			cmd.Stdout = &out
-			cmd.Stderr = &stderr
-			_ = cmd.Run()
-			h1.OS = strings.Replace(out.String(), "\n", "", -1)
-
-		} else if (runtime.GOOS == "windows") {
-
-			h1.OS = "Windows"
-
-		}
-
-		// start pcap listening
-		go pcap_routine(&h1)
-
-		// create a socket to the listener
-		go new_websocket(&h1)
-
-		for {
-
-			select {
-				// wait for interrupt
-			case <-interrupt:
-				fmt.Println("close")
-				os.Exit(0)
-			}
-
-		}
+	}
 
 }
