@@ -1028,7 +1028,7 @@ func main() {
 	pings = make([]Ping, len(pingHosts))
 
 	// run a thread to ping
-	ping_loop_ticker := time.NewTicker(5 * time.Second)
+	ping_loop_ticker := time.NewTicker(500 * time.Millisecond)
 	done := make(chan bool)
 	go func() {
 		for {
@@ -1038,6 +1038,8 @@ func main() {
 			case t := <-ping_loop_ticker.C:
 				_ = t
 				//fmt.Println("Tick at", t)
+				// collector_wait is set to 0 when more ping results should be gathered in ping_loop
+				// because of a valid response that indicated reciept of the previous ping resuls
 				ping_loop()
 			}
 		}
