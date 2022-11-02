@@ -703,8 +703,8 @@ func new_websocket(host *Host) {
 					break
 				}
 
-				// maximum update rate, twice per second
-				time.Sleep(500 * time.Millisecond)
+				// maximum update rate, once per second
+				time.Sleep(1000 * time.Millisecond)
 
 			}
 
