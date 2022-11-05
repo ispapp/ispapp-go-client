@@ -780,12 +780,12 @@ func pcap_routine(host *Host) {
 	// promiscuous mode is required for ethernet frames
 	handle, err := pcap.OpenLive(host.WanIfName, 1600, true, pcap.BlockForever)
 
-	defer handle.Close()
-
 	if (err != nil) {
 		fmt.Println("pcap error", err)
 		return
 	}
+
+	defer handle.Close()
 
 	// set a filter to only capture TCP traffic so less resources are used
 	//filter_err := handle.SetBPFFilter("tcp")
