@@ -783,7 +783,8 @@ func pcap_routine(host *Host) {
 	defer handle.Close()
 
 	if (err != nil) {
-		panic(err)
+		fmt.Println("pcap error", err)
+		return
 	}
 
 	// set a filter to only capture TCP traffic so less resources are used
