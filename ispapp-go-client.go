@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.1"
+var clientInfo string = "ispapp-go-client-1.2"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -1054,6 +1054,8 @@ func main() {
 	// get mac address
 	interfaces, _ := net.Interfaces()
 	for _, interf := range interfaces {
+
+		fmt.Println("found interface", interf.Name, interf.HardwareAddr.String())
 
 		if (loginInterface == "") {
 			if (interf.Name == "en0" || interf.Name == "en1" || interf.Name == "eth0") {

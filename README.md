@@ -49,7 +49,7 @@ GO111MODULE=off CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o ispapp-go-c
 ### Windows on amd64
 
 ```
-GO111MODULE=off CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -a -o ispapp-go-client-windows-amd64 ispapp-go-client.go
+GO111MODULE=off CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -a -o ispapp-go-client-windows-amd64.exe ispapp-go-client.go
 ```
 
 Here's a list of os/arch that are supported (there may be more now, `go tool dist list`).
