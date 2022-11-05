@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.2"
+var clientInfo string = "ispapp-go-client-1.3"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -768,7 +768,7 @@ func pcap_routine(host *Host) {
 	// wait for host.WanIfName to be set
 	for {
 
-		fmt.Printf("Waiting for WAN Interface Name to be set.\n")
+		fmt.Printf("pcap routine is waiting for WAN Interface Name to be set.\n")
 		time.Sleep(5 * time.Second)
 
 		if (host.WanIfName != "") {
@@ -776,8 +776,9 @@ func pcap_routine(host *Host) {
 		}
 	}
 
+	fmt.Println("pcap version", pcap.Version())
+
 	// capture live traffic on an interface, third option is for promiscuous mode
-	// promiscuous mode is required for ethernet frames
 	handle, err := pcap.OpenLive(host.WanIfName, 1600, true, pcap.BlockForever)
 
 	if (err != nil) {
@@ -966,7 +967,6 @@ type IPv4 struct {
 }
 
 			IPv6 - https://github.com/google/gopacket/blob/master/layers/ip6.go#L33
-			// that well must be pumping for school
 
 type IPv6 struct {
 	// http://www.networksorcery.com/enp/protocol/ipv6.htm
