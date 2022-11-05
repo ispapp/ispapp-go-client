@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.3"
+var clientInfo string = "ispapp-go-client-1.4"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -411,8 +411,6 @@ func new_websocket(host *Host) {
 	// apple laptops (for sure) keep the socket open in darkmode according to documentation
 	// at the time of this published commit
 	// wait for 1.18 to be released
-	// the problem is that go does not have a preprocessor, so you cannot do things
-	// like test if the version is adequate or tell the user that the version is inadequate in the program
 	//err = c.UnderlyingConn().(*tls.Conn).NetConn().(*net.TCPConn).SetKeepAlive(true)
 
 	// set host.WanIfName
@@ -606,7 +604,8 @@ func new_websocket(host *Host) {
 
 				// WAN interface
 				var wanif Interface = Interface{}
-				wanif.If = host.WanIfName
+				// this is the sum of all interfaces
+				wanif.If = "all"
 				wanif.RecBytes = host.InBytes
 				wanif.SentBytes = host.OutBytes
 				wanif.RecPackets = host.InPackets
@@ -777,18 +776,37 @@ func pcap_routine(host *Host) {
 	}
 
 	fmt.Println("pcap version", pcap.Version())
+	pcapdevs, pcapdevserr := pcap.FindAllDevs()
+	if (pcapdevserr != nil) {
+		fmt.Println("pcap found no interfaces")
+		return
+	}
+
+	for interf := range pcapdevs {
+
+		var i = pcapdevs[interf]
+
+		go pcap_listen(host, i.Name)
+
+	}
+
+}
+
+func pcap_listen(host *Host, ifname string) {
+
+	fmt.Println("pcap listening on", ifname)
 
 	// capture live traffic on an interface, third option is for promiscuous mode
-	handle, err := pcap.OpenLive(host.WanIfName, 1600, true, pcap.BlockForever)
+	handle, err := pcap.OpenLive(ifname, 1600, true, time.Millisecond * 2000)
 
 	if (err != nil) {
-		fmt.Println("pcap error", err)
+		fmt.Println("pcap error", ifname, err)
 		return
 	}
 
 	defer handle.Close()
 
-	// set a filter to only capture TCP traffic so less resources are used
+	// set a filter to only capture TCP traffic to use less resources
 	//filter_err := handle.SetBPFFilter("tcp")
 	//if (filter_err != nil) {
 	//	panic(err)
@@ -1113,7 +1131,7 @@ func main() {
 		//fmt.Printf("%+v\n", omap["SPHardwareDataType"])
 		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"])
 		// the data is unmarshaled to an interface{} after the root level
-		// so use a type assertion `.()` of []interface{} to access the array, in order to access the [0] element
+		// use a type assertion `.()` of []interface{} to access the array, in order to access the [0] element
 		// then use a type assertion of map[string]interface{} to access level root+1 fields
 		// or make a struct
 		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"])
