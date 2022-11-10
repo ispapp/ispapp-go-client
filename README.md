@@ -1,10 +1,52 @@
 # Installing
 
-Install the C pcap library and run the executable for your OS.
+Install a pcap library and run the executable for your OS.
 
-The compiled binaries are in this directory.
+The compiled binaries are in the root directory.
 
 `./ispapp-go-client-*`
+
+# Windows
+
+Install `npcap` or another pcap library.
+
+Download the .exe file and copy it to your Users directory.
+
+Run the program by clicking Start->Run and entering `cmd`
+
+```
+ispapp-go-client-windows-amd64.exe -domain "subdomain.ispapp.co" -hostKey "yourhostkey" -if "Wi-Fi"
+```
+
+**Run on Startup with Task Scheduler in Windows 11**
+
+The Task Scheduler won't work without a local account.
+
+1. Go to Windows Settings.
+2. Go to Accounts.
+3. Click "Your Info".
+4. Under Account settings, click "Sign in with a local account instead".
+
+Signout and Sign back in to your computer, you can also remove the Windows Hello PIN only sign in now.
+
+1. Open **Task Scheduler**.
+2. Click Create Task (**not** Create Basic Task).
+3. Select "Run whether user is logged on or not".
+4. Select the "Hidden" checkbox.
+5. Name the Task "ispapp-go-client".
+6. Click the "Conditions" Tab.
+7. Deselect "Start the task only if the computer is on AC power" option.
+8. Click the "Settings" Tab.
+9. Deselect the "Stop the task if it runs longer than" option.
+10. Click the "Triggers" Tab.
+11. Click "New".
+12. Select "At startup" from "Begin the task" at the top of the window then click OK.
+13. Click the "Actions" Tab.
+14. Click "New".
+15. Click "Browse" for Program/script and select the "ispapp-go-client-windows-amd64.exe" file in your Users directory.
+16. Add this string to the "Add arguments" field **without the outer double quotes**: "-domain "subdomain.ispapp.co" -hostKey "yourhostkey" -if "Wi-Fi"".
+17. Click OK.
+18. Click OK.
 
 # Building
 
