@@ -300,8 +300,24 @@ func comm(s string) (string, string) {
 
 	if (runtime.GOOS == "windows") {
 
-		// On Windows, processes receive the whole command line as a single string and do their own parsing.
-		cmd = exec.Command(s, "")
+		var sp = strings.Split(s, " ")
+
+		// go style
+		if (len(sp) == 1) {
+			cmd = exec.Command(sp[0], "")
+		} else if (len(sp) == 2) {
+			cmd = exec.Command(sp[0], sp[1])
+		} else if (len(sp) == 3) {
+			cmd = exec.Command(sp[0], sp[1], sp[2])
+		} else if (len(sp) == 4) {
+			cmd = exec.Command(sp[0], sp[1], sp[2], sp[3])
+		} else if (len(sp) == 5) {
+			cmd = exec.Command(sp[0], sp[1], sp[2], sp[3], sp[4])
+		} else if (len(sp) == 6) {
+			cmd = exec.Command(sp[0], sp[1], sp[2], sp[3], sp[4], sp[5])
+		} else if (len(sp) == 7) {
+			cmd = exec.Command(sp[0], sp[1], sp[2], sp[3], sp[4], sp[5], sp[6])
+		}
 
 	} else {
 
@@ -696,6 +712,12 @@ func new_websocket(host *Host) {
 					uptime_sec, _ = strconv.ParseUint(strings.Replace(out, "\n", "", -1), 10, 64)
 
 				} else if (runtime.GOOS == "windows") {
+
+					// once commands are fixed in windows, the godocs have cmd.Stdout, cmd.Output, cmd.StdoutPipe and seem to have little reason
+					// wmic OS get TotalPhysicalMemory
+					// wmic OS get FreePhysicalMemory
+					// wmic cpu get loadpercentage
+
 				}
 
 				// make the update json string
