@@ -1102,6 +1102,8 @@ func main() {
 	fmt.Printf("GOOS: %s\n", runtime.GOOS)
 	fmt.Printf("Getting system information...\n")
 
+	var cpu_count_string = strconv.FormatInt(int64(runtime.NumCPU()), 10) + " processor(s)"
+
 	if (runtime.GOOS == "darwin") {
 
 		h1.Make = "Apple"
@@ -1136,9 +1138,8 @@ func main() {
 		// or make a struct
 		//fmt.Printf("%+v\n", omap["SPSoftwareDataType"].([]interface{})[0].(map[string]interface{})["os_version"])
 
-		// what you would expect to be able to do and what you need to do because of it being compiled code
 		//h1.CPUInfo = omap["SPHardwareDataType"]["cpu_type"] + " " + omap["SPHardwareDataType"]["current_processor_speed"]
-		h1.CPUInfo = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["cpu_type"].(string) + " " + omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["current_processor_speed"].(string)
+		h1.CPUInfo = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["cpu_type"].(string) + " " + omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["current_processor_speed"].(string) + ", " + cpu_count_string
 		//h1.Model = omap["SPHardwareDataType"]["machine_name"]
 		h1.Model = omap["SPHardwareDataType"].([]interface{})[0].(map[string]interface{})["machine_name"].(string)
 		//h1.ModelNumber = omap["SPHardwareDataType"]["machine_model"]
@@ -1167,10 +1168,12 @@ func main() {
 		cmd.Stderr = &stderr
 		_ = cmd.Run()
 		h1.OS = strings.Replace(out.String(), "\n", "", -1)
+		h1.CPUInfo = cpu_count_string
 
 	} else if (runtime.GOOS == "windows") {
 
 		h1.OS = "Windows"
+		h1.CPUInfo = cpu_count_string
 
 	}
 
