@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.4"
+var clientInfo string = "ispapp-go-client-1.5"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -296,7 +296,20 @@ type Collector struct {
 
 func comm(s string) (string, string) {
 
-	cmd := exec.Command("./command.sh", s)
+	var cmd *exec.Cmd
+
+	if (runtime.GOOS == "windows") {
+
+		// On Windows, processes receive the whole command line as a single string and do their own parsing.
+		cmd = exec.Command(s, "")
+
+	} else {
+
+		// On linux and darwin the command.sh script is used to parse the arguments because exec.Command needs individual arguments.
+		cmd = exec.Command("./command.sh", s)
+
+	}
+
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
