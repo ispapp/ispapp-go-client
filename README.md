@@ -53,7 +53,7 @@ Signout and Sign back in to your computer, you can also remove the Windows Hello
 ```
 export GO111MODULE=off
 go get github.com/andrewhodel/ping
-go get github.com/andrewhodel/websocket
+go get github.com/gorilla/websocket
 go get github.com/andrewhodel/gopacket
 
 git clone https://github.com/ispapp/ispapp-go-client
@@ -150,6 +150,4 @@ Then copy the text output with no newlines as the `ca_bundle_hex` variable data 
 
 # license
 
-The project ispapp-linux-client is licensed per the GNU General Public License, version 2
-
-A copy is in the project directory, as a file named LICENSE
+The project ispapp-linux-client is licensed per the MIT License
