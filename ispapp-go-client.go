@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.5"
+var clientInfo string = "ispapp-go-client-1.6"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -87,6 +87,9 @@ type Host struct {
 	OutBytes		uint64
 	InPackets		uint64
 	OutPackets		uint64
+	SequenceNumber		uint64
+	LastUpdateResponseTs	int64
+	FloodDelayStartTs	int64
 }
 
 type Interface struct {
@@ -541,13 +544,15 @@ func new_websocket(host *Host) {
 
 			} else if (hr.Type == "update") {
 
+				host.LastUpdateResponseTs = time.Now().Unix()
+
 			} else if (hr.Type == "error") {
 				fmt.Printf("ERROR Received from Server: %s\n", hr.Error)
 
 			}
 
 			if (hr.UpdateFast) {
-				// update every second
+				// update as fast as processed
 				sendAt = time.Now().Unix() + 0
 
 				// always send collector data when updateFast is enabled
@@ -610,7 +615,21 @@ func new_websocket(host *Host) {
 
 		//fmt.Printf("attempt for %s\t\t\tauthed=%t\tsendAt=%d\tsendAtDiff=%d\n", host.Login, authed, sendAt, sendAt-time.Now().Unix())
 
-		if (time.Now().Unix() > sendAt) {
+		if (time.Now().Unix() > sendAt || (host.LastUpdateResponseTs - time.Now().Unix() > host.OutageIntervalSeconds)) {
+			// sendAt has arrived or
+			// or the time since the last update response has been longer than the configured outage interval
+
+			if (time.Now().Unix() - host.FloodDelayStartTs <= 2) {
+				// if a flood delay was set within the last 2 seconds, wait
+				continue
+			}
+
+			if (host.LastUpdateResponseTs - time.Now().Unix() > host.OutageIntervalSeconds) {
+				// the time since the last update response has been longer than the configured outage interval
+				// apply a flood delay
+				// to avoid many update requests if there is a network problem
+				host.FloodDelayStartTs = time.Now().Unix()
+			}
 
 			if (authed) {
 
@@ -723,12 +742,15 @@ func new_websocket(host *Host) {
 				// make the update json string
 				s := ""
 				if (sendColData) {
-					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"collectors\": %s, \"uptime\": %d}", "update", ipaddrstr, string(cols_json), uptime_sec)
+					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"collectors\": %s, \"uptime\": %d, \"sequenceNumber\": %d}", "update", ipaddrstr, string(cols_json), uptime_sec, host.SequenceNumber)
 				} else {
-					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"uptime\": %d}", "update", ipaddrstr, uptime_sec)
+					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"uptime\": %d, \"sequenceNumber\": %d}", "update", ipaddrstr, uptime_sec, host.SequenceNumber)
 				}
 
-				fmt.Printf("%s sending update, sendColData=%t\n", host.Login, sendColData)
+				// increment the host sequence number
+				host.SequenceNumber += 1
+
+				fmt.Printf("%s sending update %d, sendColData=%t\n", host.Login, host.SequenceNumber, sendColData)
 				//fmt.Printf("%s\n", s)
 
 				err = c.WriteMessage(websocket.TextMessage, []byte(s))
