@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.6"
+var clientInfo string = "ispapp-go-client-1.7"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -563,12 +563,14 @@ func new_websocket(host *Host) {
 				// send the update at the time requested
 				var sendOffset = host.OutageIntervalSeconds - hr.LastUpdateOffsetSec
 
-				// this will save battery power
-				if (host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec <= sendOffset) {
-					// it is time for a collector update
+				if (host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec <= sendOffset + 5) {
+					// the next update response is within this update response plus request response time (5 seconds max, on planet)
+					// send the collector data in the next update request
 					sendColData = true
+					// use host.UpdateIntervalSeconds to calculate the sendOffset
 					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
 				} else {
+					// do not send collector data
 					sendColData = false
 				}
 
