@@ -34,7 +34,7 @@ var port int = 8550
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.7"
+var clientInfo string = "ispapp-go-client-1.8"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -1102,6 +1102,7 @@ func main() {
 	pingHosts = append(pingHosts, []byte("aws-us-east-1-ping.ispapp.co"))
 	pingHosts = append(pingHosts, []byte("aws-us-west-1-ping.ispapp.co"))
 	pingHosts = append(pingHosts, []byte("aws-sa-east-1-ping.ispapp.co"))
+	pingHosts = append(pingHosts, []byte(domain))
 
 	pings = make([]Ping, len(pingHosts))
 
