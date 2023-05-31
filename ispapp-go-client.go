@@ -31,10 +31,11 @@ var ca_bundle_hex string = "2d2d2d2d2d424547494e2043455254494649434154452d2d2d2d
 
 var domain string = ""
 var port int = 8550
+var updateDelay int = 0
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-1.8"
+var clientInfo string = "ispapp-go-client-2.0"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -500,7 +501,7 @@ func new_websocket(host *Host) {
 				readError = true
 				return
 			}
-			//fmt.Printf("\nrecv: %s\n", message)
+			fmt.Printf("\nrecv: %s\n", message)
 
 			var hr WsResponse
 
@@ -552,8 +553,8 @@ func new_websocket(host *Host) {
 			}
 
 			if (hr.UpdateFast) {
-				// update as fast as processed
-				sendAt = time.Now().Unix() + 0
+				// update with this delay
+				sendAt = time.Now().Unix() + int64(updateDelay)
 
 				// always send collector data when updateFast is enabled
 				sendColData = true
@@ -1079,11 +1080,12 @@ type IPv6 struct {
 func main() {
 
 	fmt.Println("USAGE:")
-	fmt.Println("\t./ispapp-go-client -domain \"dev.ispapp.co\" -hostKey \"yourhostkey\" -port 8550 -if \"en0\" -certPath \"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\"\n\n-port, -if and -certPath are not required.\n\n")
+	fmt.Println("\t./ispapp-go-client -domain \"dev.ispapp.co\" -hostKey \"yourhostkey\" -port 8550 -updateDelay 2 -if \"en0\" -certPath \"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\"\n\n-port, -if, -updateDelay and -certPath are not required.\n\n")
 
 	flag.StringVar(&domain, "domain", "unknown", "ISPApp domain")
 	flag.StringVar(&hostKey, "hostKey", "", "ISPApp Host Key")
 	flag.IntVar(&port, "port", 8550, "ISPApp port")
+	flag.IntVar(&updateDelay, "updateDelay", 2, "Update Delay in Seconds (fast update mode)")
 	flag.StringVar(&loginInterface, "if", "", "Name of Interface for Login MAC Address")
 	flag.StringVar(&pemFile, "certPath", "/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle", "TLS certificate file path")
 
