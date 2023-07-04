@@ -35,7 +35,7 @@ var updateDelay int = 0
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-2.0"
+var clientInfo string = "ispapp-go-client-2.1"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -430,7 +430,7 @@ func new_websocket(host *Host) {
 
 	d := websocket.Dialer{TLSClientConfig: &tls.Config{RootCAs: roots}}
 
-	c, _, err := d.Dial(u.String(), nil)
+	c, _, err := d.Dial(u.String() + "?login=" + host.Login + "&key=" + hostKey, nil)
 
 	if err != nil {
 		fmt.Println("dial:", err)
@@ -584,7 +584,7 @@ func new_websocket(host *Host) {
 		}
 	}()
 
-	s := fmt.Sprintf("{\"type\": \"%s\", \"login\": \"%s\", \"key\": \"%s\", \"clientInfo\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"fw\": \"%s\", \"fwVersion\": \"%s\", \"osBuildDate\": %d, \"webshellSupport\": true, \"bandwidthTestSupport\": false, \"firmwareUpgradeSupport\": false}", "config", host.Login, hostKey, clientInfo, host.Make, host.Model, host.ModelNumber, host.SerialNumber, host.CPUInfo, host.OS, host.OSVersion, host.Firmware, host.FirmwareVersion, host.OSBuildDate)
+	s := fmt.Sprintf("{\"type\": \"%s\", \"clientInfo\": \"%s\", \"hardwareMake\": \"%s\", \"hardwareModel\": \"%s\", \"hardwareModelNumber\": \"%s\", \"hardwareSerialNumber\": \"%s\", \"hardwareCpuInfo\": \"%s\", \"os\": \"%s\", \"osVersion\": \"%s\", \"fw\": \"%s\", \"fwVersion\": \"%s\", \"osBuildDate\": %d, \"webshellSupport\": true, \"bandwidthTestSupport\": false, \"firmwareUpgradeSupport\": false}", "config", clientInfo, host.Make, host.Model, host.ModelNumber, host.SerialNumber, host.CPUInfo, host.OS, host.OSVersion, host.Firmware, host.FirmwareVersion, host.OSBuildDate)
 
 	if (c != nil) {
 
