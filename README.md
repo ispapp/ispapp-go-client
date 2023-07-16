@@ -150,4 +150,4 @@ Then copy the text output with no newlines as the `ca_bundle_hex` variable data 
 
 # license
 
-The project ispapp-linux-client is licensed per the MIT License
+The project ispapp-go-client is licensed MIT

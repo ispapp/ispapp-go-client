@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"fmt"
 	"net"
 	"strings"
@@ -35,7 +34,7 @@ var updateDelay int = 0
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-2.1"
+var clientInfo string = "ispapp-go-client-2.2"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -400,19 +399,20 @@ func new_websocket(host *Host) {
 
 	if (ca_bundle_hex != "") {
 
-		// use the hex data in this file
-		// convienent for distributing binary files
-		// because often operating systems do not include ca files
+		// add the certificate data in this file
 
 		ca_s, _ := hex.DecodeString(ca_bundle_hex)
 		ok := roots.AppendCertsFromPEM(ca_s)
 		if !ok {
-			log.Fatal("failed to parse root certificate")
+			fmt.Println("failed to parse root certificate")
+			os.Exit(1)
 		}
 
-	} else {
+	}
 
-		// use the file provided as a command line option
+	if (pemFile != "") {
+
+		// add the certificate file provided by the command line option
 
 		rootPEM, rperr := ioutil.ReadFile(pemFile)
 		if rperr != nil {
@@ -421,7 +421,8 @@ func new_websocket(host *Host) {
 
 			ok := roots.AppendCertsFromPEM(rootPEM)
 			if !ok {
-				log.Fatal("failed to parse root certificate")
+				fmt.Println("failed to parse root certificate")
+				os.Exit(1)
 			}
 
 		}
@@ -1082,16 +1083,16 @@ func main() {
 	fmt.Println("USAGE:")
 	fmt.Println("\t./ispapp-go-client -domain \"dev.ispapp.co\" -hostKey \"yourhostkey\" -port 8550 -updateDelay 2 -if \"en0\" -certPath \"/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle\"\n\n-port, -if, -updateDelay and -certPath are not required.\n\n")
 
-	flag.StringVar(&domain, "domain", "unknown", "ISPApp domain")
+	flag.StringVar(&domain, "domain", "", "ISPApp domain")
 	flag.StringVar(&hostKey, "hostKey", "", "ISPApp Host Key")
 	flag.IntVar(&port, "port", 8550, "ISPApp port")
 	flag.IntVar(&updateDelay, "updateDelay", 2, "Update Delay in Seconds (fast update mode)")
 	flag.StringVar(&loginInterface, "if", "", "Name of Interface for Login MAC Address")
-	flag.StringVar(&pemFile, "certPath", "/home/ec2-user/ispapp-keys/__ispapp_co.ca-bundle", "TLS certificate file path")
+	flag.StringVar(&pemFile, "certPath", "", "TLS certificate file path")
 
 	flag.Parse()
 
-	if (domain == "unknown") {
+	if (domain == "") {
 		os.Exit(1)
 	}
 
@@ -1181,7 +1182,8 @@ func main() {
 
 		var omap map[string]interface{}
 		if jerr := json.Unmarshal(out.Bytes(), &omap); jerr != nil {
-			log.Fatal(jerr)
+			fmt.Println(jerr)
+			os.Exit(1)
 		}
 		//fmt.Printf("%+v\n", omap)
 
