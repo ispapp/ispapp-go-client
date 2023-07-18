@@ -34,7 +34,7 @@ var updateDelay int = 0
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-2.2"
+var clientInfo string = "ispapp-go-client-2.3"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -483,7 +483,7 @@ func new_websocket(host *Host) {
 	var sendAt = time.Now().Unix()
 
 	var readError = false
-	var sendColData = false
+	var sendColData = 1
 
 	go func() {
 
@@ -558,7 +558,7 @@ func new_websocket(host *Host) {
 				sendAt = time.Now().Unix() + int64(updateDelay)
 
 				// always send collector data when updateFast is enabled
-				sendColData = true
+				sendColData += 1
 
 			} else {
 
@@ -568,12 +568,11 @@ func new_websocket(host *Host) {
 				if (host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec <= sendOffset + 5) {
 					// the next update response is within this update response plus request response time (5 seconds max, on planet)
 					// send the collector data in the next update request
-					sendColData = true
+					sendColData += 1
 					// use host.UpdateIntervalSeconds to calculate the sendOffset
 					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
 				} else {
-					// do not send collector data
-					sendColData = false
+					// do not increment sendColData
 				}
 
 				sendAt = time.Now().Unix() + sendOffset
@@ -743,10 +742,16 @@ func new_websocket(host *Host) {
 
 				}
 
+				if (sendColData < 0) {
+					// updates were sent that had no response
+					sendColData = 1
+				}
+
 				// make the update json string
 				s := ""
-				if (sendColData) {
+				if (sendColData > 0) {
 					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"collectors\": %s, \"uptime\": %d, \"sequenceNumber\": %d}", "update", ipaddrstr, string(cols_json), uptime_sec, host.SequenceNumber)
+					sendColData -= 1
 				} else {
 					s = fmt.Sprintf("{\"type\": \"%s\", \"wanIp\": \"%s\", \"uptime\": %d, \"sequenceNumber\": %d}", "update", ipaddrstr, uptime_sec, host.SequenceNumber)
 				}
