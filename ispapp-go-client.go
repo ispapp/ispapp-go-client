@@ -34,7 +34,7 @@ var updateDelay int = 0
 var loginInterface string = ""
 var pemFile string = ""
 var hostKey string = ""
-var clientInfo string = "ispapp-go-client-2.3"
+var clientInfo string = "ispapp-go-client-2.4"
 var pingHosts [][]byte
 var pings []Ping
 var collector_wait = 0
@@ -554,25 +554,24 @@ func new_websocket(host *Host) {
 			}
 
 			if (hr.UpdateFast) {
-				// update with this delay
+				// update with the default delay set at runtime
 				sendAt = time.Now().Unix() + int64(updateDelay)
 
-				// always send collector data when updateFast is enabled
+				// send collector data when updateFast is enabled
 				sendColData += 1
 
 			} else {
 
-				// send the update at the time requested
+				// send the update using the outage update wait
 				var sendOffset = host.OutageIntervalSeconds - hr.LastUpdateOffsetSec
 
-				if (host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec <= sendOffset + 5) {
-					// the next update response is within this update response plus request response time (5 seconds max, on planet)
+				if (host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec <= sendOffset) {
+					// the col update wait is more near or equal to the outage update wait
+
 					// send the collector data in the next update request
 					sendColData += 1
 					// use host.UpdateIntervalSeconds to calculate the sendOffset
 					sendOffset = host.UpdateIntervalSeconds - hr.LastColUpdateOffsetSec
-				} else {
-					// do not increment sendColData
 				}
 
 				sendAt = time.Now().Unix() + sendOffset
